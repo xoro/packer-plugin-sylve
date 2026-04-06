@@ -53,6 +53,18 @@ trusted certificate installed.
 
 ## Installation
 
+### Naming
+
+The [GitHub repository][repo] and the Go module in [`go.mod`](go.mod) use the long form
+`github.com/xoro/packer-plugin-sylve`, as required for Packer plugins hosted on GitHub.
+
+In Packer templates and CLI commands, the plugin **source** is the short form
+`github.com/xoro/sylve`. Packer resolves that to the `packer-plugin-sylve` repository and
+does not allow the `packer-plugin-` prefix in the `source` string. The same split appears
+in other plugins (for example, VMware uses `github.com/vmware/vmware` with repository
+[`packer-plugin-vmware`](https://github.com/vmware/packer-plugin-vmware)). See the
+Packer [plugin installation][docs-packer-plugin-install] documentation for details.
+
 ### Using the Releases
 
 #### Automatic Installation

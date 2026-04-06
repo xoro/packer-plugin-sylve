@@ -6,6 +6,14 @@
 For tags **v0.1.0** and **v0.1.1**, GoReleaser is **not** run in Actions (see `.github/workflows/release.yml`).
 Build artifacts locally under `release-artifacts/<version>/` (gitignored), then attach them to a GitHub Release.
 
+From the repository root, generate that directory (matching [`.goreleaser.yml`](../.goreleaser.yml) naming) with:
+
+```sh
+./bin/build_release_artifacts.sh
+```
+
+Requires `go`, `zip`, and `sha256sum` (or `shasum` on macOS). Re-run after changing [`version/version.go`](../version/version.go).
+
 ## Contents per version
 
 Each `release-artifacts/vX.Y.Z/` directory should contain:

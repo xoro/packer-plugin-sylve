@@ -124,6 +124,16 @@ change.**
 go test ./...                 # Run unit tests
 ```
 
+For a full local gate (format check, lint, unit tests with coverage, gitleaks, security scanners), run:
+
+```bash
+./bin/run_all.sh
+```
+
+For **manual** GitHub release bundles (same layout as GoReleaser for v0.1.x tags where Actions skips GoReleaser), see
+[`docs/GITHUB_RELEASES.md`](docs/GITHUB_RELEASES.md). Run `./bin/build_release_artifacts.sh` to produce the zips and checksum
+file.
+
 ## Environment Variables
 
 | Variable      | Description                                               |
