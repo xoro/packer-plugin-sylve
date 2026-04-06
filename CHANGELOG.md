@@ -3,6 +3,12 @@
 
 # Changelog
 
+## [0.1.3] - 2026-04-06
+
+### ⚙️ Miscellaneous Tasks
+
+- _(security)_ Tighten trivy scan and add patch release script
+
 ## [0.1.2] - 2026-04-06
 
 ### Build and documentation
