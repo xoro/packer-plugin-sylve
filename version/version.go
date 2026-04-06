@@ -15,7 +15,7 @@ var (
 
 	// VersionPrerelease is an optional pre-release label (e.g. "dev", "beta.1").
 	// An empty string means this is a production release.
-	VersionPrerelease = "dev"
+	VersionPrerelease = ""
 
 	// VersionMetadata is optional build metadata appended to the version string.
 	VersionMetadata = ""

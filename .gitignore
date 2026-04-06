@@ -5,6 +5,9 @@ packer-plugin-sylve_freebsd_amd64
 # GoReleaser
 dist/
 
+# Local manual release zips and checksums (not committed)
+release-artifacts/
+
 # Go
 *.test
 *.out
