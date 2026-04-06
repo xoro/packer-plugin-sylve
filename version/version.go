@@ -11,7 +11,7 @@ import "github.com/hashicorp/packer-plugin-sdk/version"
 var (
 	// Version is the semantic version of the plugin (MAJOR.MINOR.PATCH), without a "v"
 	// prefix. Git release tags use vX.Y.Z per HashiCorp Packer convention.
-	Version = "0.1.1"
+	Version = "0.1.2"
 
 	// VersionPrerelease is an optional pre-release label (e.g. "dev", "beta.1").
 	// An empty string means this is a production release.
