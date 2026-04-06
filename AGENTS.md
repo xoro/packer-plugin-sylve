@@ -51,6 +51,8 @@ PACKER_ACC=1 go test -count 1 -v ./... -timeout=120m
   mode; install the `goreleaser` CLI first).
 - **Manual GitHub uploads (v0.1.x)**: see [`docs/GITHUB_RELEASES.md`](docs/GITHUB_RELEASES.md); **branch protection**:
   [`docs/BRANCH_PROTECTION.md`](docs/BRANCH_PROTECTION.md).
+- **Patch release from `main`**: [`bin/create_release.sh`](bin/create_release.sh) (`--push` bumps PATCH, updates `CHANGELOG.md`,
+  commits, tags `vX.Y.Z`, pushes; see [development-workflow](.cursor/rules/development-workflow.mdc)).
 
 Acceptance tests require `SYLVE_URL` and `SYLVE_TOKEN` to be set (see Environment Variables).
 

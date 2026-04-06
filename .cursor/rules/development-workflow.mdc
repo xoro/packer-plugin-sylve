@@ -11,7 +11,8 @@ alwaysApply: true
 
 ## Overview
 
-This rule documents the standardized development and release workflow for the packer-plugin-sylve project, ensuring consistent practices across all development activities.
+This rule documents the standardized development and release workflow for the packer-plugin-sylve project, ensuring consistent
+practices across all development activities.
 
 ## Development Workflow
 
@@ -43,7 +44,7 @@ This rule documents the standardized development and release workflow for the pa
 go test ./...                 # Unit tests
 ```
 
-4. Push to `development`
+- Push to `development`
 
 ## Release Workflow
 
@@ -56,22 +57,36 @@ go test ./...                 # Unit tests
 
 ### Release Process
 
-**Use the automated release script:**
+**Patch release (typical):** on `main` with a clean working tree, bump PATCH, refresh `CHANGELOG.md`, commit, tag, and
+push:
 
 ```bash
-./bin/create_release.sh <version>
+./bin/format_code.sh
+./bin/run_format_checks.sh
+./bin/run_linter_checks.sh
+go test ./...
+./bin/create_release.sh --push
 ```
 
-**What the release script does:**
+**What `bin/create_release.sh` does:**
 
-1. Validates you're on the `development` branch with a clean working directory
-2. Validates semantic version format
-3. Generates changelog using git-cliff
-4. Commits changelog to development
-5. Switches to main and merges development (fast-forward)
-6. Creates an annotated Git tag on `main` in **HashiCorp / Packer form**: `v` + SemVer (e.g. `v1.0.0` — see [Version Management](#version-management))
-7. Pushes everything to remote
-8. Returns to development branch
+1. Requires the current branch to be `main` (override with `--branch <name>`) and the working tree to be clean
+2. Reads `Version` from `version/version.go`, increments **PATCH** only (e.g. `0.1.2` → `0.1.3`)
+3. Prepends a new section to `CHANGELOG.md` using **git-cliff** (`--unreleased`) when `git-cliff` is in `PATH`, else a
+   minimal stub
+4. Writes the new `Version` into `version/version.go`
+5. Runs `format_code.sh`, `go test ./...`, and `run_linter_checks.sh` unless `--skip-checks` is passed
+6. Commits with `chore(release): X.Y.Z` and creates an annotated tag **`vX.Y.Z`**
+7. With **`--push`**, runs `git push origin main` and `git push origin vX.Y.Z` (omit `--push` to push manually)
+
+For tags **after** `v0.1.0` / `v0.1.1`, **GoReleaser** in GitHub Actions (`.github/workflows/release.yml`) builds and attaches
+artifacts. Use **`--dry-run`** to print the next version without changing files.
+
+**MAJOR and MINOR bumps** are not automated: edit `version/version.go` and `CHANGELOG.md` by hand, then commit; tag and
+push as usual.
+
+See also [`docs/GITHUB_RELEASES.md`](../../docs/GITHUB_RELEASES.md) for manual zips and the older `v0.1.0` / `v0.1.1`
+exception.
 
 ### Manual Release (Alternative)
 
@@ -123,7 +138,7 @@ git push origin development
 
 ### Semantic Versioning (SemVer) Requirement
 
-Use **SemVer** `X.Y.Z` for the version _value_ (what users see in `packer version` and templates):
+Use **SemVer** `X.Y.Z` for the version _value_ (what users see in `packer version` and templates).
 
 - **MAJOR (X)**: Breaking changes to the plugin config or builder API
 - **MINOR (Y)**: New backwards-compatible features
@@ -132,9 +147,12 @@ Use **SemVer** `X.Y.Z` for the version _value_ (what users see in `packer versio
 
 ### Git tags and Packer releases (HashiCorp-style)
 
-**Git tags for releases MUST use a `v` prefix** (`vX.Y.Z`), matching [HashiCorp Packer plugin installation](https://developer.hashicorp.com/packer/docs/plugins/install-plugins) expectations and GitHub Releases (e.g. `v0.1.0`, `v1.2.3`).
+**Git tags for releases MUST use a `v` prefix** (`vX.Y.Z`), matching
+[HashiCorp Packer plugin installation](https://developer.hashicorp.com/packer/docs/plugins/install-plugins)
+expectations and GitHub Releases (e.g. `v0.1.0`, `v1.2.3`).
 
-**Do not** put the `v` in `version/version.go`: keep **`Version = "0.1.0"`** (bare SemVer). The `v` is only for **Git** tags and release metadata, not for the string compiled into the binary.
+**Do not** put the `v` in `version/version.go`: keep **`Version = "0.1.0"`** (bare SemVer). The `v` is only for **Git**
+tags and release metadata, not for the string compiled into the binary.
 
 ### Version Location
 
@@ -142,4 +160,5 @@ The version is defined in `version/version.go` and may be overridden or augmente
 
 ## Automated Changelog Integration
 
-git-cliff parses conventional commits to generate `CHANGELOG.md`. Configuration is in `cliff.toml`. The changelog is generated automatically by the release script.
+git-cliff parses conventional commits to generate `CHANGELOG.md`. Configuration is in `cliff.toml`. The changelog is generated
+automatically by the release script.

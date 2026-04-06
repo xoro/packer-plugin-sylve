@@ -21,6 +21,8 @@
 #
 # 3. Filesystem Vulnerability Scanning:
 #    - Runs trivy to scan for vulnerabilities, misconfigs, and secrets
+#    - Skips packer.log (local Packer output can trigger false-positive secret findings)
+#    - Uses --exit-code 1 so any reported finding fails the script (not only scan errors)
 #
 # 4. Static Security Analysis:
 #    - Runs semgrep with the auto ruleset to detect security issues in Go code
@@ -91,7 +93,11 @@ printf "%b %b INFO:  ==>> SUCCEEDED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${scr
 # Filesystem vulnerability scanning
 step_text="Run trivy filesystem vulnerability scan"
 printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
-if ! trivy filesystem --scanners vuln,secret,misconfig .; then
+if ! trivy filesystem \
+    --skip-files "**/packer.log" \
+    --scanners vuln,secret,misconfig \
+    --exit-code 1 \
+    .; then
     printf "%b %b ERROR: ==>> FAILED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
     exit 4
 fi

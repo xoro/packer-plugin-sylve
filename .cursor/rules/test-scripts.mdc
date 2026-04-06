@@ -33,6 +33,7 @@ All quality scripts live in `bin/`:
 | `bin/update_go_mods.sh`                   | Update Go module dependencies                                      |
 | `bin/build_release_artifacts.sh`          | Manual GitHub release zips (v0.1.x; see `docs/GITHUB_RELEASES.md`) |
 | `bin/publish_github_release_artifacts.sh` | Build (optional) and `gh` upload to GitHub Release (see same doc)  |
+| `bin/create_release.sh`                   | Bump PATCH, changelog, commit, tag `vX.Y.Z`, optional push         |
 
 ## Execution Strategy
 
