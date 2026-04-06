@@ -1,0 +1,45 @@
+#!/bin/sh
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+# Detect the first available disk (ignores loop devices).
+DISK=$(fdisk -l 2>/dev/null | grep dev | grep sectors | grep -v loop | cut -d / -f 3 | cut -d : -f 1)
+echo "Detected disk: /dev/$DISK"
+
+# Write the setup-alpine answer file.
+cat <<EOF >/tmp/answerfile
+KEYMAPOPTS="us us"
+HOSTNAMEOPTS="alpine-packer"
+DEVDOPTS="mdev"
+INTERFACESOPTS="auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet dhcp
+    hostname alpine-packer
+"
+TIMEZONEOPTS="UTC"
+PROXYOPTS="none"
+APKREPOSOPTS="-c -1"
+USEROPTS="none"
+SSHDOPTS="openssh"
+NTPOPTS="chrony"
+LBUOPTS="none"
+APKCACHEOPTS="none"
+DISKOPTS="-m sys /dev/$DISK"
+EOF
+
+echo "Running setup-alpine..."
+yes | setup-alpine -e -f /tmp/answerfile
+
+# Mount the installed root partition and configure SSH access.
+# Partition layout for virtio-blk (vda): vda1=boot, vda2=swap, vda3=root.
+# For nvme devices:                      nvme0n1p3=root.
+echo "Configuring SSH on installed system..."
+mount /dev/$${DISK}3 /mnt
+echo "root:${ssh_password}" | chroot /mnt chpasswd
+sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /mnt/etc/ssh/sshd_config
+umount /mnt
+
+echo "Rebooting into installed OS..."
+reboot

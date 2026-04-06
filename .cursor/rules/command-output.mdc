@@ -1,0 +1,53 @@
+---
+description: "Command output standards — show complete unfiltered output"
+auto_attach: ["**/*.sh", "**/Makefile"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Command Output Standards
+
+## Overview
+
+When executing shell commands, always show the complete, unfiltered output to provide full visibility into what is happening during command execution.
+
+## Command Execution Rules
+
+### DO NOT Filter Command Output
+
+**NEVER use output filtering or truncation in shell commands:**
+
+- **NO `2>&1 | tail -10`** - Do not truncate output to last N lines
+- **NO `2>&1 | grep`** - Do not filter output with grep
+- **NO `2>&1 | head`** - Do not truncate output to first N lines
+
+### DO Show Complete Output
+
+```bash
+# Good - Full output
+go test ./...
+
+# Good - Full output with error stream
+./bin/run_linter_checks.sh
+
+# Good - Complete command execution
+./bin/run_security_scanners.sh
+```
+
+### Avoid Filtered Output
+
+```bash
+# Bad - Filtering with grep
+go test ./... 2>&1 | grep "FAIL"
+
+# Bad - Truncating with tail
+./bin/run_linter_checks.sh 2>&1 | tail -10
+```
+
+## Rationale
+
+1. **Complete Context**: All error messages, warnings, and info are visible
+2. **Better Debugging**: No hidden information that might be relevant
+3. **Transparency**: The full execution flow is visible

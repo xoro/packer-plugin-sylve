@@ -1,0 +1,43 @@
+---
+description: "Terminal usage and command execution standards"
+auto_attach: ["**/*.sh", "**/Makefile"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Terminal and Command Execution Rules
+
+## Command Execution Preferences
+
+- **ALWAYS execute commands in the integrated terminal within the chat window**
+- **NEVER open new separate terminal windows or external terminals**
+- **Always show command output directly in the chat window**
+- Use long-form command line options when available (see `command-line-options.mdc`)
+- **NEVER use commands that might spawn new terminal processes or windows**
+
+## Command Examples
+
+### Preferred
+
+```bash
+# Use long options where available
+git commit --message "feat(builder): add SSH communicator support"
+go test --count=1 --verbose ./...
+
+# Show full output
+./bin/run_format_checks.sh
+./bin/run_linter_checks.sh
+go test ./...
+```
+
+### Avoid
+
+```bash
+# Short options where long-form exists
+git commit -m "feat(builder): add SSH communicator support"
+
+# Filtering output
+./bin/run_linter_checks.sh 2>&1 | tail -20
+```

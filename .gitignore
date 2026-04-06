@@ -1,0 +1,34 @@
+# Build output
+packer-plugin-sylve
+packer-plugin-sylve_freebsd_amd64
+
+# GoReleaser
+dist/
+
+# Go
+*.test
+*.out
+vendor/
+.go-version
+
+# Packer
+*.pkr.hcl.lock.json
+
+# Example build artifacts
+examples/sylve-iso/hello-alpine
+examples/sylve-iso/hello-debian
+examples/sylve-iso/hello-freebsd
+examples/sylve-iso/hello-openbsd
+
+# Packer debug log
+packer.log
+
+# SBOM and security scan artifacts
+sbom.cdx.xml
+grype_packer-plugin-sylve-*.json
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo

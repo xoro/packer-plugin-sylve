@@ -1,0 +1,184 @@
+---
+description: "Shell script development standards and best practices"
+auto_attach: ["**/*.sh", "**/Makefile", "**/bin/*"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Shell Script Development Standards
+
+## Overview
+
+This document defines the standards for shell script development in the packer-plugin-sylve project, ensuring consistency, maintainability, and cross-platform compatibility. All scripts MUST be POSIX-compliant (`#!/bin/sh`).
+
+## License Header Requirements
+
+All shell scripts MUST include the BSD-2-Clause license header followed by a documentation block. See `license-header.mdc` for the full format.
+
+## Output and User Interface
+
+### Log Format
+
+All output MUST use `printf` with `%b` format specifier, structured as:
+
+```
+TIMESTAMP SCRIPT_NAME LEVEL: message
+```
+
+**Log levels** (fixed-width aligned):
+
+- `INFO:  ` - Informational messages (2 trailing spaces for alignment)
+- `DEBUG: ` - Debug output for variable values and diagnostics
+- `ERROR: ` - Error conditions
+- `WARN:  ` - Warnings (2 trailing spaces for alignment)
+
+```bash
+printf "%b %b INFO:  message here\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+printf "%b %b DEBUG: variable_name=<%b>\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${value}"
+printf "%b %b ERROR: message here\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+printf "%b %b WARN:  message here\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+```
+
+### Debug Variable Output
+
+When logging variable values, wrap them in angle brackets `<>` to make empty values and whitespace visible:
+
+```bash
+printf "%b %b DEBUG: go_version=<%b>\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${go_version}"
+```
+
+### NO COLOR OUTPUT
+
+**CRITICAL: NEVER use colors in shell scripts.**
+
+- No ANSI color codes (`\033[0;31m`, `\033[0;32m`, etc.)
+- No color variables (`RED`, `GREEN`, `YELLOW`, `BLUE`, `NC`)
+- Plain text only for all output
+
+### NO VISUAL INDICATORS (EMOJIS)
+
+**CRITICAL: NEVER use emojis or Unicode symbols in shell scripts.**
+
+- Use `SUCCESS:`, `ERROR:`, `WARNING:` as plain text
+- Use `==>>` prefix for step markers (consistent with STEP/SUCCEEDED/FAILED pattern)
+
+## Step Pattern
+
+All scripts MUST use the STEP / SUCCEEDED / FAILED pattern for each logical operation. This provides consistent, structured output for debugging and CI logs.
+
+### Step Structure
+
+```bash
+step_text="Description of what this step does"
+printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+if ! some_command; then
+    printf "%b %b ERROR: ==>> FAILED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+    exit N
+fi
+printf "%b %b INFO:  ==>> SUCCEEDED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+```
+
+**Key elements:**
+
+- `step_text` variable holds the description, reused across STEP/FAILED/SUCCEEDED lines
+- Leading `\n` before STEP line for visual separation between steps
+- `==>>` prefix is consistent across all three phases
+- Each step has a unique exit code on failure
+- Error handling uses `if !` pattern (not `set -e`)
+
+### Step with Debug Output
+
+```bash
+step_text="Determining the latest release tag"
+printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+if ! latest_tag="$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort --version-sort | tail -n 1)"; then
+    printf "%b %b ERROR: ==>> FAILED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+    exit 3
+fi
+if [ -z "${latest_tag}" ]; then
+    printf "%b %b ERROR: ==>> FAILED: No release tags found\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+    exit 3
+fi
+printf "%b %b DEBUG: latest_tag=<%b>\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${latest_tag}"
+printf "%b %b INFO:  ==>> SUCCEEDED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+```
+
+### Step with Subshell for Compound Commands
+
+For multi-command steps, use subshells `()` with `&&` chaining:
+
+```bash
+step_text="Building and installing the plugin"
+printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+if ! (
+    go build ./... &&
+        make dev
+); then
+    printf "%b %b ERROR: ==>> FAILED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+    exit 2
+fi
+printf "%b %b INFO:  ==>> SUCCEEDED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+```
+
+## Script Structure
+
+### Shebang Line
+
+Always use `#!/bin/sh` for POSIX compatibility. **NEVER use `#!/bin/bash`**.
+
+### POSIX Compliance
+
+Since all scripts use `#!/bin/sh`, the following bashisms are **FORBIDDEN**:
+
+- `set -o pipefail` (not POSIX)
+- `local` keyword (not guaranteed by POSIX)
+- `[[ ]]` double brackets (use `[ ]` instead)
+- `source` command (use `.` dot instead)
+- `function` keyword (use `func_name() {` instead)
+- `$RANDOM`, `$BASH_VERSION`, or other bash-specific variables
+- Arrays (`arr=(a b c)`)
+- `<<<` here-strings
+- `echo -e` (use `printf` instead)
+
+### Error Handling
+
+Use explicit `if !` checks with unique exit codes per step. Do **NOT** use `set -euo pipefail`.
+
+For simple utility scripts in `bin/`, `set -eu` alone may be used:
+
+```bash
+set -eu
+```
+
+### Script Name Variable
+
+Define immediately after the documentation header:
+
+```bash
+script_name="$(basename "${0}")"
+```
+
+### Long-Form Command Options
+
+Use long-form options in all scripts. See `command-line-options.mdc`.
+
+```bash
+# CORRECT
+find . --not -path './.git/*' -name '*.go'
+git tag --list
+
+# AVOID
+find . ! -path './.git/*' -name '*.go'
+git tag -l
+```
+
+## Formatting Requirements
+
+All shell scripts must pass:
+
+- `shellcheck --shell=sh` — no warnings or errors
+- `shfmt --posix --indent 4` — POSIX-compliant, 4-space indentation
+
+Run `./bin/format_code.sh` to apply formatting automatically.

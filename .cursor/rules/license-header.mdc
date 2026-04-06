@@ -1,0 +1,183 @@
+---
+description: "BSD-2-Clause license header requirements for all source files"
+auto_attach:
+  [
+    "**/*.go",
+    "**/*.sh",
+    "**/*.hcl",
+    "**/*.pkr.hcl",
+    "**/*.toml",
+    "**/*.md",
+    "**/*.mdx",
+    "**/*.yml",
+    "**/*.yaml",
+    "**/*.json",
+    "**/*.c",
+    "**/*.h",
+  ]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# License Header Standards
+
+## Overview
+
+All source files must include a consistent BSD-2-Clause license header at the beginning of the file.
+
+## License Header Format
+
+```
+// SPDX-License-Identifier: BSD-2-Clause
+// Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+```
+
+## File Type Specific Headers
+
+### Go Files (.go)
+
+```go
+// SPDX-License-Identifier: BSD-2-Clause
+// Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+package sylve
+```
+
+### Shell Scripts (.sh)
+
+```bash
+#!/bin/sh
+
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+# ===============================================================================
+# Script Name and Purpose
+# ===============================================================================
+#
+# Brief description of what the script does and its main purpose.
+#
+# The script performs the following tasks:
+# 1. First major task or step
+# 2. Second major task or step
+# 3. Third major task or step
+#
+# Usage:
+#   ./script_name.sh [optional arguments]
+#
+# Dependencies:
+#   - Required tool or package
+#
+# Exit Codes:
+#   0 - Success
+#   1 - First error condition
+#   2 - Second error condition
+#
+# ===============================================================================
+```
+
+### HCL/Packer Files (.hcl, .pkr.hcl)
+
+```hcl
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+```
+
+### TOML Files (.toml)
+
+```toml
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+```
+
+### Markdown Files (.md, .mdx)
+
+```markdown
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Document Title
+```
+
+### YAML Files (.yml, .yaml)
+
+```yaml
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+```
+
+### JSON Files (.json)
+
+JSON does not support comments; omit the license header for JSON files unless the tool consuming the file supports a `_comment` key convention.
+
+### C/Header Files (.c, .h)
+
+```c
+// SPDX-License-Identifier: BSD-2-Clause
+// Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+```
+
+## Examples
+
+### Good License Header — Go File
+
+```go
+// SPDX-License-Identifier: BSD-2-Clause
+// Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+// Package sylve implements the Packer builder for Sylve-managed Bhyve VMs.
+package sylve
+
+import (
+    "context"
+)
+```
+
+### Good License Header — Shell Script
+
+```bash
+#!/bin/sh
+
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+# ===============================================================================
+# Run Unit Tests
+# ===============================================================================
+#
+# Runs the Go unit test suite with coverage reporting.
+#
+# Usage:
+#   ./bin/run_unit_tests.sh
+#
+# Dependencies:
+#   - go
+#
+# Exit Codes:
+#   0 - All tests passed
+#   1 - Tests failed
+#
+# ===============================================================================
+
+set -eu
+
+script_name="$(basename "${0}")"
+```
+
+### Good License Header — HCL Template
+
+```hcl
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+packer {
+  required_plugins {
+    sylve = {
+      version = ">= 0.1.0"
+      source  = "github.com/xoro/sylve"
+    }
+  }
+}
+```

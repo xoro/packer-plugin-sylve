@@ -1,0 +1,210 @@
+---
+description: "Git commit message standards and workflow"
+auto_attach: ["**/.git/**", "**/git*"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Git Commit Message Standards
+
+## Overview
+
+This document defines the standardized commit message format for the packer-plugin-sylve project, ensuring consistent and meaningful commit history that supports automated changelog generation (via git-cliff) and clear project history.
+
+## Commit Message Format
+
+### Basic Structure
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Format Rules
+
+1. **Subject Line**:
+   - Maximum 72 characters
+   - Use imperative mood ("add" not "added")
+   - No period at the end
+   - Start with lowercase letter after the type prefix
+
+2. **Body** (optional):
+   - Separate from subject with blank line
+   - Use imperative mood
+   - Explain what and why, not how
+   - Wrap at 72 characters
+   - Use bullet points for multiple items
+   - **NO empty lines between list items** - keep them compact
+   - **Nested lists**: Use `-` for main items, `*` for sub-items
+
+3. **Footer** (optional):
+   - Separate from body with blank line
+   - Reference issues, breaking changes, etc.
+
+## Commit Types
+
+| Type       | Purpose                                              | Example                                               |
+| ---------- | ---------------------------------------------------- | ----------------------------------------------------- |
+| `feat`     | New user-facing feature                              | `feat(builder): add SSH communicator support`         |
+| `fix`      | Bug fix, security patch, error handling improvement  | `fix(api): handle 200-with-error-body responses`      |
+| `docs`     | Documentation only changes                           | `docs: update installation instructions`              |
+| `style`    | Formatting, whitespace, no logic change              | `style: fix shell script indentation`                 |
+| `refactor` | Code change that neither fixes a bug nor adds a feat | `refactor(builder): extract step into separate file`  |
+| `perf`     | Performance improvement                              | `perf(api): reuse HTTP client across steps`           |
+| `test`     | Adding or correcting tests                           | `test: add Prepare validation unit tests`             |
+| `build`    | Build system or external dependency changes          | `build: update packer-plugin-sdk to v0.5.3`           |
+| `ci`       | CI/CD configuration and scripts                      | `ci: add acceptance test stage`                       |
+| `chore`    | Maintenance tasks, configuration changes             | `chore: rename run_checks.sh to run_format_checks.sh` |
+
+### Special: Dependency Updates
+
+Use `chore(deps)` for dependency updates. This scope is treated specially by git-cliff and grouped separately in the changelog under "Dependencies".
+
+```
+chore(deps): update packer-plugin-sdk from 0.5.2 to 0.5.3
+chore(deps): update Go dependencies to latest versions
+```
+
+Do NOT use `build(deps)` or scopeless `chore: update deps` — always use `chore(deps)`.
+
+## Scope Guidelines
+
+- **Use scope** when the change affects a specific component, module, or area
+- **Omit scope** for general changes that affect the entire project or multiple areas
+- **Keep scope names** short and descriptive
+
+### Common Scopes
+
+| Scope            | Area                           |
+| ---------------- | ------------------------------ |
+| `builder`        | Builder component              |
+| `provisioner`    | Provisioner component          |
+| `datasource`     | Data source component          |
+| `post-processor` | Post-processor component       |
+| `api`            | Sylve API client (`internal/`) |
+| `ci`             | CI/CD pipeline                 |
+| `deps`           | Dependency updates             |
+| `docs`           | Documentation                  |
+| `test`           | Testing infrastructure         |
+| `build`          | Build system / Makefile        |
+
+## Description Guidelines
+
+### Imperative Mood
+
+Think of the commit as completing: "If applied, this commit will..."
+
+**Correct:** `feat(builder): add SSH communicator support`
+**Incorrect:** `feat(builder): added SSH communicator support`
+
+### Description Length
+
+- Keep under 72 characters total (including type and scope)
+- Use the body for detailed explanations when the subject is insufficient
+
+## Body Examples
+
+**Simple list:**
+
+```
+feat(builder): add SSH communicator support
+
+- Configure SSH key pair during VM provisioning
+- Read public key path from builder config
+- Clean up key pair on artifact destroy
+
+Closes #12
+```
+
+**Nested list:**
+
+```
+fix(api): handle 200-with-error-body responses
+
+- Inspect response body for non-empty "error" field
+  * Treat it as a failure even when status is 200
+  * Wrap the upstream error message in a Go error
+
+- Add unit tests for the new inspection logic
+  * Cover empty body, success body, and error body cases
+```
+
+## Footer Guidelines
+
+### Breaking Changes
+
+Use `BREAKING CHANGE:` prefix in footer:
+
+```
+feat(builder): rename SylveURL config field to Endpoint
+
+BREAKING CHANGE: The config field SylveURL has been renamed to
+Endpoint for consistency with other Packer plugins. Update all
+.pkr.hcl templates accordingly.
+```
+
+### Issue References
+
+Reference issues using GitHub syntax:
+
+```
+Fixes #123
+Closes #456
+Relates to #789
+```
+
+## Changelog Integration
+
+Commit messages are automatically parsed by **git-cliff** to generate `CHANGELOG.md`. The changelog groups map directly to commit types (defined in `cliff.toml`):
+
+| Commit Type   | Changelog Group        |
+| ------------- | ---------------------- |
+| `feat`        | Features               |
+| `fix`         | Bug Fixes              |
+| `chore(deps)` | Dependencies           |
+| `refactor`    | Refactoring            |
+| `perf`        | Performance            |
+| `ci`          | Continuous Integration |
+| `docs`        | Documentation          |
+| `style`       | Code Style             |
+| `test`        | Testing                |
+| `build`       | Build System           |
+| `chore`       | Miscellaneous Tasks    |
+
+## Pre-Commit Verification
+
+**MANDATORY: Run format checks, linter checks, and unit tests before every commit.**
+
+```bash
+./bin/run_format_checks.sh
+./bin/run_linter_checks.sh
+go test ./...
+```
+
+All three must pass before a commit is created.
+
+## Commit Message Approval Workflow
+
+**IMPORTANT: NEVER commit without user approval!**
+
+When asked to create a commit:
+
+1. **Run format, lint, and unit tests** and ensure they pass
+2. **Generate a conventional commit message** describing the changes
+3. **Show the generated commit message** to the user
+4. **Wait for the user to approve** or request changes
+5. **Only commit after explicit user approval**
+
+## Best Practices
+
+- Use conventional commit format consistently
+- Use imperative mood in descriptions
+- Keep subject lines under 72 characters
+- Use scope for component-specific changes
+- Reference GitHub issues when applicable
+- Never bundle unrelated changes in one commit

@@ -1,0 +1,57 @@
+---
+description: "Long command line options, documentation, and aliasing standards"
+auto_attach: ["**/*.sh", "**/Makefile", "**/*.md"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Long Command Line Options Rule
+
+## Overview
+
+When using command line options in code, documentation, or communication, always prefer long-form options over short-form options where available.
+
+## Guidelines
+
+### Preferred Usage
+
+- Use `--verbose` instead of `-v`
+- Use `--help` instead of `-h`
+- Use `--version` instead of `-V`
+- Use `--force` instead of `-f`
+- Use `--recursive` instead of `-r`
+- Use `--all` instead of `-a`
+- Use `--output` instead of `-o`
+
+### Examples
+
+#### Good
+
+```bash
+git commit --message "feat: add SSH communicator support"
+git tag --list
+find . -name '*.go' -not -path './.git/*'
+go test --count=1 --verbose ./...
+```
+
+#### Avoid
+
+```bash
+git commit -m "feat: add SSH communicator support"
+git tag -l
+go test -count=1 -v ./...
+```
+
+### Exceptions
+
+- When the tool does not provide a long-form equivalent
+- When short options are required by a specific tool's interface (e.g., `go build ./...`)
+- When following established conventions in specific tools where long-form is non-standard
+
+### Documentation
+
+- Always document commands using long options in README files
+- Use long options in code comments and documentation
+- Prefer long options in shell scripts under `bin/`

@@ -1,0 +1,96 @@
+---
+description: "General coding standards and best practices for all file types"
+auto_attach: ["**/*"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallath (timo@pallach.de). -->
+
+# General Coding Standards
+
+## Overview
+
+This rule defines universal coding standards that apply to ALL file types in the packer-plugin-sylve project. These standards ensure consistency, maintainability, and maximum compatibility across different environments and tools.
+
+## Universal Standards
+
+### NO VISUAL INDICATORS (EMOJIS) - UNIVERSAL RULE
+
+**CRITICAL: NEVER use emojis or visual indicators in ANY source code, configuration, or data files.**
+
+#### What is PROHIBITED:
+
+- **No emojis** (check mark, X, stop sign, checkmark button, red/green circles, party popper, rocket, etc.)
+- **No Unicode symbols** (arrows, warning, info, etc.)
+- **No special characters** that may not render properly in all environments
+- **No visual indicators** that depend on specific fonts or rendering capabilities
+
+#### What is ALLOWED:
+
+- **Plain ASCII text only** for maximum compatibility
+- **Descriptive text** instead of visual indicators
+- **Standard punctuation** (., !, ?, :, etc.)
+- **Markdown files (.md, .mdc)** - emojis are allowed ONLY in these files
+
+#### Why This Rule Exists:
+
+1. **Cross-platform compatibility** - Not all terminals/environments support emojis
+2. **Tool compatibility** - Many development tools don't handle emojis well
+3. **Accessibility** - Screen readers and assistive technologies work better with plain text
+4. **Professional appearance** - Clean, readable code without visual distractions
+5. **Maintenance** - Easier to maintain and modify code without emoji dependencies
+
+## File Type Specific Rules
+
+### Shell Scripts (.sh)
+
+- **NO emojis** in output messages, status indicators, or comments
+- **Use descriptive text** like "SUCCESS:", "ERROR:", "WARNING:" instead
+- **Follow shell-scripts.mdc** for additional shell-specific standards
+
+### Configuration Files (.json, .yaml, .yml, .toml, .hcl)
+
+- **NO emojis** in any configuration values, comments, or descriptions
+- **Use plain text** for all configuration content
+- **Maintain readability** through clear, descriptive text
+
+### Source Code Files (.go, .c, .h)
+
+- **NO emojis** in code comments, strings, or documentation
+- **Use descriptive text** for all human-readable content
+
+### Documentation Files (.md, .mdc, .mdx)
+
+- **Emojis ARE ALLOWED** in markdown files
+- **Use sparingly** and purposefully
+
+## Examples
+
+### WRONG - Using Emojis in Code
+
+```bash
+# Shell script - WRONG
+echo "OK Operation completed successfully"
+echo "X Something went wrong"
+```
+
+```go
+// Go code - WRONG
+// ROCKET Starting the builder
+func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (packer.Artifact, error) {
+```
+
+### CORRECT - Using Plain Text
+
+```bash
+# Shell script - CORRECT
+printf "INFO:  Operation completed successfully\n"
+printf "ERROR: Something went wrong\n"
+```
+
+```go
+// Go code - CORRECT
+// Run executes the builder steps to create a Bhyve VM image.
+func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (packer.Artifact, error) {
+```

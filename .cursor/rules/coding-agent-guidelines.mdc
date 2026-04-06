@@ -1,0 +1,232 @@
+---
+description: "Guidelines for coding agents (LLMs) creating or modifying code"
+auto_attach: ["**/*"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Coding Agent Guidelines
+
+## Overview
+
+This rule defines mandatory guidelines for coding agents (LLMs such as GitHub Copilot, Cursor, Claude, or similar) when creating, modifying, or reviewing code in this project. These guidelines ensure that all agent-produced changes are well-documented, traceable, safe, and consistent with the existing codebase.
+
+This rule is intentionally language-agnostic so it can be reused across projects with different technology stacks.
+
+## Before Writing Any Code
+
+### Context Gathering
+
+1. **Read and understand the existing code** surrounding the change before modifying anything
+2. **Identify the patterns and conventions** used in the file and module being changed
+3. **Check AGENTS.md** in the project root for project-specific commands, conventions, and gotchas
+4. **Read all referenced rule files** from `.cursor/rules/` that apply to the file type being modified
+5. **Understand the purpose** of the code being changed, not just its syntax
+
+### Planning
+
+1. **Prefer small, focused changes** over large rewrites
+2. **Break complex tasks** into sequential, individually testable steps
+3. **Identify all affected callers and tests** before changing function signatures or behaviour
+4. **Never mix unrelated changes** in the same edit or commit
+
+## Documentation Requirements
+
+### Module-Level Documentation
+
+Every new or significantly modified module, class, or file must have a documentation block at the top explaining:
+
+- **Purpose**: What the module does and why it exists
+- **Responsibilities**: What this module is responsible for
+- **Usage**: How other parts of the codebase interact with it
+
+Update existing module documentation when changes alter the module's behaviour or responsibilities.
+
+### Function and Method Documentation
+
+Every new or modified public function or method must have a documentation comment covering:
+
+- **Purpose**: What the function does
+- **Parameters**: Description of each parameter and its expected type
+- **Return value**: What the function returns and its type
+- **Error cases**: What error conditions are handled and how
+- **Side effects**: Any side effects (network calls, file operations, state mutation)
+
+### Type Annotations
+
+Add type annotations or specifications to all new or modified public functions. Use the language's native type system or documentation conventions.
+
+### Language Reference for Documentation Syntax
+
+| Language              | Module docs            | Function docs          | Type annotations                             |
+| --------------------- | ---------------------- | ---------------------- | -------------------------------------------- |
+| Go                    | Package comment        | Function comment       | Native type system                           |
+| Shell                 | Header comment block   | Function comment block | N/A                                          |
+| JavaScript/TypeScript | JSDoc `/** */` at top  | JSDoc `/** */`         | TypeScript types / JSDoc `@param`/`@returns` |
+| Python                | Module-level docstring | Function docstring     | Type hints / `-> type`                       |
+| C/C++                 | Doxygen `/** */`       | Doxygen `/** */`       | Native type system                           |
+
+## Change Documentation Standards
+
+### Mandatory: Explain Why, Not What
+
+Every code change must include documentation that explains the **rationale** behind the change. The code itself shows _what_ changed; comments must explain _why_.
+
+### Comment Depth by Change Type
+
+#### Security Design Annotations (`[SECURITY DESIGN]`)
+
+Use the `[SECURITY DESIGN]` tag to mark code that embodies an intentional,
+non-obvious security decision that must **never be silently reverted or
+"simplified away"** during future refactoring. It is distinct from a security
+_fix_ comment: it documents an architectural constraint that looks surprising
+without context.
+
+When to use it:
+
+- A setting or behaviour that appears overly restrictive but is deliberate
+- A configuration value that is intentionally absent from prod/test but present in dev
+- A pattern that deviates from the obvious implementation for a security reason
+- Any decision a future developer might be tempted to change without realising the impact
+
+Format — place it at the relevant line with a block explaining:
+
+1. What the design decision is
+2. Why it is required (the threat or vulnerability it addresses)
+3. Where the corresponding test or CI guard lives
+
+#### Security Fixes
+
+Add a multi-line comment block at the point of the fix:
+
+```go
+// Security: Validate the token before using it in API requests.
+//
+// Previously, tokens were passed through without validation, allowing
+// malformed tokens to reach the Sylve API and produce confusing error
+// responses. Tokens are now validated for non-empty and expected format
+// before any request is dispatched.
+```
+
+#### Non-Obvious Design Decisions
+
+Add a comment block explaining the trade-off or reasoning:
+
+```go
+// BuilderId must never change after the first public release.
+// Post-processors use it to identify compatible artifacts; changing it
+// would silently break all existing post-processor configurations.
+```
+
+#### Workarounds and Framework Limitations
+
+Explain what the workaround addresses and when it can be removed:
+
+```go
+// Workaround: the Sylve API returns HTTP 200 with an error body on some
+// failure paths instead of a 4xx/5xx status. We inspect the body and
+// treat a non-empty "error" field as a failure.
+// TODO: Remove when upstream API issue #42 is resolved.
+```
+
+#### Behavioural Changes
+
+When changing how an existing function works, document what changed and why:
+
+```go
+// Changed: Prepare() no longer makes an API call to validate credentials.
+// Validation is deferred to the first Run() step so that Prepare() remains
+// side-effect free, as required by the Packer plugin contract.
+```
+
+#### Simple, Self-Evident Fixes
+
+A brief inline comment is sufficient when the fix is obvious from context:
+
+```go
+// Fix off-by-one: slice must include the last element
+```
+
+### What NOT to Comment
+
+- **Do not restate what the code does** - the code is the source of truth for _what_
+- **Do not add placeholder comments** like `// TODO: implement` without detail
+- **Do not add comments to communicate with the user** - use the conversation instead
+- **Do not add commented-out code** without a clear explanation of why it is kept
+
+## Test Requirements
+
+### Every Change Must Be Tested
+
+1. **Add new tests** that cover every new behaviour or code path introduced
+2. **Add regression tests** for bug fixes that verify the previously broken path is now correct
+3. **Never remove or weaken existing tests** unless the tested behaviour is intentionally changed
+4. **Update affected tests** when changing function signatures, return values, or behaviour
+5. **Run the full relevant test suite** after every change before considering it complete
+
+### Test Documentation
+
+New test cases must have descriptive names that explain the scenario being tested:
+
+```go
+// Good: TestPrepare_RejectsEmptySylveURL
+// Good: TestRun_RetriesOnNetworkTimeout
+// Avoid: TestPrepare
+// Avoid: TestRun1
+```
+
+## Code Style and Consistency
+
+### Match the Existing Codebase
+
+1. **Follow the patterns** already established in the file and surrounding modules
+2. **Use the same naming conventions** as existing code in the project
+3. **Match the indentation, spacing, and formatting** style of the file
+4. **Do not introduce new libraries or patterns** without explicit instruction
+5. **Do not refactor surrounding code** unless asked - focus on the task at hand
+
+### Preserve Existing Functionality
+
+1. **Never change behaviour** that was not explicitly requested
+2. **Never remove functionality** unless explicitly asked
+3. **Verify backward compatibility** when changing interfaces or APIs
+4. **Keep error messages and log output consistent** with existing conventions
+
+## Safety and Verification
+
+### Before Considering a Change Complete
+
+1. **Run format and lint checks** using `./bin/run_format_checks.sh` and `./bin/run_linter_checks.sh`
+   - If format check fails, run `./bin/format_code.sh` and re-run the checks
+2. **Run unit tests** using `go test ./...` or `./bin/run_unit_tests.sh`
+3. **Check for compile errors or warnings** introduced by the change
+4. **Verify all callers** of changed functions still work correctly
+5. **Review the diff** to ensure no unintended changes were included
+
+### What to Never Do
+
+- **Never commit directly to the main/master branch** - follow the project's branch strategy
+- **Never hardcode secrets, passwords, or tokens** in source code
+- **Never disable or bypass security controls** without explicit instruction
+- **Never ignore test failures** - investigate and fix them
+- **Never silently swallow errors** - handle them explicitly or propagate them
+
+## Commit Standards
+
+1. **Follow the project's commit message format** (see `git-commit.mdc`)
+2. **One logical change per commit** - do not bundle unrelated fixes
+3. **Reference the source** of the change in the commit body (e.g., issue number, user request)
+4. **Run all pre-commit checks** before finalising the commit
+
+## Summary
+
+When creating or modifying code as a coding agent:
+
+1. **Read first, code second** - understand context before changing anything
+2. **Document every change** - explain _why_ at the appropriate depth for the change type
+3. **Test every change** - add tests, run tests, fix failures
+4. **Match existing style** - follow the patterns already in the codebase
+5. **Keep changes focused** - one concern per change, no unrelated modifications
+6. **Verify before completing** - run format, lint, and unit tests before considering the task done

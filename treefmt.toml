@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+# Use .git/config to find the tree root automatically
+tree-root-file = ".git/config"
+
+# Exclude files that should not be formatted
+# Only includes file types that actually exist in the project and have no formatter
+# This allows treefmt to warn about new unhandled file types
+excludes = [
+  # Plain text files with no formatter
+  "LICENSE",
+  ".gitignore",
+  # Go module lock file (auto-managed by go toolchain)
+  "go.sum",
+  # Generated security scan result files
+  "grype_*.json",
+  "osv-scanner_*.json",
+  # Generated SBOM artifact
+  "sbom.cdx.xml",
+  # Unattended installer config files (no formatter)
+  "*.cfg",
+  "*.conf",
+  # Packer unattended/answer templates (no formatter in treefmt)
+  "*.pkrtpl",
+  # Go module file (managed by go toolchain)
+  "go.mod",
+]
+
+[formatter.gofmt]
+command = "gofmt"
+includes = ["*.go"]
+options = ["-w"]
+
+[formatter.shfmt]
+command = "shfmt"
+includes = ["*.sh"]
+options = ["--write", "--posix", "--indent", "4"]
+
+[formatter.packer]
+command = "packer"
+includes = ["*.pkr.hcl"]
+options = ["fmt"]
+
+[formatter.taplo]
+command = "taplo"
+includes = ["*.toml"]
+options = ["fmt"]
+
+[formatter.clang-format]
+command = "clang-format"
+includes = ["*.c", "*.h"]
+options = ["--style=LLVM", "-i"]
+
+[formatter.prettier-markdown]
+command = "prettier"
+includes = ["*.md", "*.mdx"]
+options = ["--write"]
+
+[formatter.prettier-mdc]
+command = "prettier"
+includes = ["*.mdc"]
+options = ["--write", "--parser", "markdown"]
+
+[formatter.prettier-json]
+command = "prettier"
+includes = ["*.json"]
+options = ["--write"]

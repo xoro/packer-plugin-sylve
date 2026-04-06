@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+# bsdinstall(8) unattended installation script for FreeBSD.
+# Served over HTTP by Packer and fetched from the installer shell.
+# The ${ssh_password} placeholder is rendered by Packer's templatefile()
+# before the file is served -- it is not a shell variable.
+
+PARTITIONS=DEFAULT
+DISTRIBUTIONS="base.txz kernel.txz"
+
+#!/bin/sh
+sysrc hostname=freebsd-packer
+sysrc ifconfig_DEFAULT=DHCP
+sysrc sshd_enable=YES
+sed -i '' 's/#PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
+echo 'autoboot_delay="-1"' >> /boot/loader.conf
+echo "${ssh_password}" | pw usermod root -h 0
+reboot

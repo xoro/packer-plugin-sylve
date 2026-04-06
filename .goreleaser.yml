@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+#
+# GoReleaser configuration for packer-plugin-sylve (aligned with
+# https://github.com/hashicorp/packer-plugin-scaffolding ).
+#
+# Builds only darwin/arm64 and freebsd/amd64 for now; expand goos/goarch and
+# trim `ignore` when you add platforms.
+#
+# Tag releases as vX.Y.Z (HashiCorp style). {{ .Version }} is SemVer without "v".
+#
+# API_VERSION must match the Packer plugin API from packer-plugin-sdk
+# (see plugin.APIVersionMajor / APIVersionMinor in the SDK — currently x5.0).
+
+# GoReleaser v2 schema (required by goreleaser CLI v2+).
+version: 2
+
+project_name: packer-plugin-sylve
+
+env:
+  - CGO_ENABLED=0
+  - API_VERSION=x5.0
+
+before:
+  hooks:
+    - go test ./...
+    - make install-packer-sdc plugin-check
+
+builds:
+  - id: packer-plugin-sylve
+    main: .
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X github.com/xoro/packer-plugin-sylve/version.Version={{ .Version }}
+      - -X github.com/xoro/packer-plugin-sylve/version.VersionPrerelease=
+    goos:
+      - darwin
+      - freebsd
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: darwin
+        goarch: amd64
+      - goos: freebsd
+        goarch: arm64
+    binary: "{{ .ProjectName }}_v{{ .Version }}_{{ .Env.API_VERSION }}_{{ .Os }}_{{ .Arch }}"
+
+archives:
+  - formats: zip
+    name_template: "{{ .ProjectName }}_v{{ .Version }}_{{ .Env.API_VERSION }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - none*
+
+checksum:
+  name_template: "{{ .ProjectName }}_v{{ .Version }}_SHA256SUMS"
+  algorithm: sha256
+
+changelog:
+  disable: true

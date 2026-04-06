@@ -1,0 +1,296 @@
+---
+modeline: |
+  vim: set ft=pandoc:
+description: |
+  The sylve-iso builder creates a Bhyve virtual machine via the Sylve API,
+  boots it from an ISO image, runs provisioners over SSH, and produces an
+  artifact from the resulting VM state.
+page_title: Sylve ISO - Builders
+nav_title: ISO
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Sylve ISO Builder
+
+Type: `sylve-iso`
+Artifact BuilderId: `xoro.sylveiso`
+
+The `sylve-iso` builder creates a new Bhyve virtual machine through the
+[Sylve][sylve] REST API, boots it from an ISO image that is fetched via
+Sylve's built-in download manager, runs Packer provisioners over SSH, and
+produces an artifact from the resulting VM state. The VM is deleted from
+Sylve after a successful build by default (`destroy = true`).
+
+| Platform                | Artifact BuilderId |
+| ----------------------- | ------------------ |
+| Sylve / Bhyve (FreeBSD) | `xoro.sylveiso`    |
+
+## Basic Example
+
+~> **Note**: This example is illustrative. Adjust `sylve_url`, `switch_name`,
+and ISO URL to match your environment.
+
+```hcl
+packer {
+  required_plugins {
+    sylve = {
+      version = ">= 0.1.0"
+      source  = "github.com/xoro/sylve"
+    }
+  }
+}
+
+source "sylve-iso" "freebsd" {
+  sylve_url   = "https://192.168.1.10:8181"
+  sylve_token = env("SYLVE_TOKEN")
+
+  iso_download_url = "https://download.freebsd.org/releases/amd64/amd64/ISO-IMAGES/15.0/FreeBSD-15.0-RELEASE-amd64-dvd1.iso"
+  switch_name      = "packer-switch"
+
+  vm_name         = "freebsd-packer"
+  cpu_cores       = 2
+  ram             = 2048
+  storage_size_mb = 20480
+
+  boot_wait = "15s"
+  boot_command = [
+    "<enter>",
+  ]
+
+  ssh_username = "root"
+  ssh_password = "sylve-example"
+  ssh_timeout  = "30m"
+
+  shutdown_command = "/sbin/poweroff"
+  destroy          = true
+}
+
+build {
+  sources = ["source.sylve-iso.freebsd"]
+
+  provisioner "shell" {
+    inline = ["pkg install -y curl"]
+  }
+}
+```
+
+## Configuration Reference
+
+### Authentication
+
+The builder requires either a pre-issued Bearer token **or** a username and
+password pair. Exactly one authentication method must be provided.
+
+**Required (one of)**:
+
+- `sylve_token` (string) - A pre-issued Bearer token for the Sylve API. Falls
+  back to the `SYLVE_TOKEN` environment variable. When supplied, `sylve_user`
+  and `sylve_password` are ignored. When absent, the builder performs a login
+  at the start of the build and a logout when it finishes.
+
+- `sylve_user` (string) - Sylve account username for login-based
+  authentication. Falls back to the `SYLVE_USER` environment variable.
+  Required when `sylve_token` is not set.
+
+- `sylve_password` (string) - Sylve account password for login-based
+  authentication. Falls back to the `SYLVE_PASSWORD` environment variable.
+  Required when `sylve_token` is not set.
+
+**Required**:
+
+- `iso_download_url` (string) - A URL passed to the Sylve download manager.
+  The plugin triggers the download and polls until the download status becomes
+  `"done"`. Supports HTTP, HTTPS, and any scheme accepted by Sylve.
+
+- `switch_name` (string) - Name of a DHCP-enabled Sylve virtual switch to
+  attach the VM's network interface to.
+
+### Connection Configuration
+
+**Optional**:
+
+- `sylve_url` (string) - Base URL of the Sylve instance including scheme and
+  port. Defaults to `https://localhost:8181`.
+
+- `sylve_auth_type` (string) - Authentication type used in the login request.
+  Valid values: `"sylve"` (native database account, default) or `"pam"`
+  (PAM authentication). Falls back to the `SYLVE_AUTH_TYPE` environment
+  variable.
+
+- `tls_skip_verify` (bool) - Disables TLS certificate verification. Defaults
+  to `true` because Sylve ships with a self-signed certificate. Set to `false`
+  when using a trusted certificate.
+
+### VM Hardware Configuration
+
+**Optional**:
+
+- `vm_name` (string) - Name prefix for the temporary VM. A UUID suffix is
+  appended automatically to avoid collisions. Defaults to a generated name.
+
+- `cpu_cores` (int) - Number of vCPU cores per socket. Defaults to `2`.
+
+- `cpu_sockets` (int) - Number of vCPU sockets. Defaults to `1`.
+
+- `cpu_threads` (int) - Number of threads per core. Defaults to `1`.
+
+- `ram` (int) - Amount of memory in MiB. Defaults to `1024`.
+
+- `loader` (string) - VM firmware loader. `"uefi"` (default) for UEFI boot or
+  `"bios"` for legacy BIOS boot.
+
+- `time_offset` (string) - Guest clock offset. `"utc"` (default) or
+  `"localtime"`.
+
+~> **Note**: ACPI and APIC are always enabled. Bhyve requires both for correct
+guest power management and interrupt routing.
+
+### Storage Configuration
+
+**Optional**:
+
+- `storage_pool` (string) - ZFS pool name on the Sylve host to create the
+  install disk in. When empty, the plugin selects the first pool from Sylve's
+  basic settings.
+
+- `storage_size_mb` (int) - Install disk size in MiB. Defaults to `65536`
+  (64 GiB).
+
+- `storage_type` (string) - Zvol type. Defaults to `"zvol"`.
+
+- `storage_emulation_type` (string) - Disk emulation type for the install
+  disk. Defaults to `"virtio-blk"`.
+
+### Network Configuration
+
+**Optional**:
+
+- `switch_emulation_type` (string) - NIC emulation type for the virtual
+  switch interface. Defaults to `"e1000"`.
+
+### VNC Configuration
+
+The builder uses a VNC connection through the Sylve WebSocket proxy to send
+boot commands to the guest console.
+
+**Optional**:
+
+- `vnc_port_min` (int) - Lower bound of the VNC port range (inclusive).
+  Defaults to `5900`. Must be >= `5900`.
+
+- `vnc_port_max` (int) - Upper bound of the VNC port range (inclusive).
+  Defaults to `5999`.
+
+- `vnc_host` (string) - Hostname or IP address used for the VNC connection.
+  Defaults to the host portion of `sylve_url`, so that Packer running remotely
+  (e.g. from macOS) connects to the correct Sylve server without additional
+  configuration.
+
+- `vnc_password` (string) - Optional VNC password. Leave empty when Sylve is
+  not configured with a VNC password.
+
+- `vnc_resolution` (string) - VNC display resolution passed to Sylve on VM
+  creation. Defaults to `"1024x768"`.
+
+### Boot Configuration
+
+**Optional**:
+
+- `boot_wait` (string) - Duration to wait after the VM starts before sending
+  VNC boot commands. Accepts Go duration strings (e.g. `"10s"`, `"2m"`).
+  Defaults to `"10s"`.
+
+- `boot_key_interval` (duration) - Delay between each key group in
+  `boot_command`. Defaults to `200ms`. Increase this value if keystrokes are
+  dropped on a high-latency connection.
+
+- `boot_command` ([]string) - List of VNC keyboard sequences to type at the
+  guest console after `boot_wait`. Supports the same key syntax as other
+  Packer VNC builders (e.g. `"<enter>"`, `"<leftAltOn><F2><leftAltOff>"`).
+
+### HTTP Configuration
+
+The builder can serve a local directory over HTTP to the guest during
+provisioning (e.g. for preseed or kickstart files).
+
+**Optional**:
+
+- `http_directory` (string) - Path to a local directory to serve over HTTP
+  to the guest. The URL is available in boot commands via the
+  `{{ .HTTPIP }}` and `{{ .HTTPPort }}` template variables.
+
+- `http_port_min` (int) - Minimum port number for the HTTP server. Defaults
+  to `8000`.
+
+- `http_port_max` (int) - Maximum port number for the HTTP server. Defaults
+  to `9000`.
+
+- `http_bind_address` (string) - Address on which the HTTP server listens.
+  Defaults to `0.0.0.0`.
+
+### Shutdown Configuration
+
+**Optional**:
+
+- `shutdown_command` (string) - Command sent over SSH to shut down the
+  provisioned VM gracefully. Defaults to `"/sbin/poweroff"`.
+
+### Build Lifecycle Configuration
+
+**Optional**:
+
+- `destroy` (bool) - Whether to delete the VM from Sylve after a successful
+  build. Defaults to `true`. Set to `false` to keep the VM running for
+  inspection. On error or cancellation the VM is always deleted regardless of
+  this setting.
+
+- `keep_on_error` (bool) - Whether to keep the VM alive when the build fails.
+  Defaults to `false`. Set to `true` to keep the VM running for post-failure
+  debugging (equivalent to `-on-error=abort`).
+
+### Communicator Configuration
+
+The builder uses the SSH communicator to run provisioners inside the guest.
+
+**Optional** (common):
+
+- `communicator` (string) - Communicator type. Defaults to `"ssh"`.
+
+**Optional** (SSH):
+
+- `ssh_username` (string) - SSH username. Defaults to `"root"`.
+
+- `ssh_password` (string) - SSH password. Mutually exclusive with
+  `ssh_private_key_file`.
+
+- `ssh_private_key_file` (string) - Path to a PEM-encoded private key for SSH
+  authentication.
+
+- `ssh_timeout` (string) - Maximum time to wait for an SSH connection.
+  Accepts Go duration strings. Defaults to `"5m"`.
+
+- `ssh_port` (int) - SSH port. Defaults to `22`.
+
+- `ssh_host` (string) - Override the SSH host. When empty the IP address
+  assigned by the Sylve DHCP virtual switch is used.
+
+- `ssh_handshake_attempts` (int) - Number of SSH handshake attempts before
+  failing. Defaults to `10`.
+
+- `ssh_pty` (bool) - Allocate a pseudo-terminal for SSH sessions. Defaults
+  to `false`.
+
+For additional SSH communicator options, refer to the
+[Packer SSH communicator documentation][docs-communicator-ssh].
+
+## Related
+
+- [Sylve GitHub repository][sylve]
+- [Packer communicator documentation][docs-communicator-ssh]
+- [Packer boot command documentation][docs-boot-command]
+
+[sylve]: https://github.com/AlchemillaHQ/Sylve
+[docs-communicator-ssh]: https://developer.hashicorp.com/packer/docs/communicators/ssh
+[docs-boot-command]: https://developer.hashicorp.com/packer/docs/templates/hcl_templates/functions/contextual/env

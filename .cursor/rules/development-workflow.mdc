@@ -1,0 +1,145 @@
+---
+description: "Development workflow and branch management"
+auto_attach: ["**/.git/**", "**/go.mod", "**/Makefile"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Development and Release Workflow Rules
+
+## Overview
+
+This rule documents the standardized development and release workflow for the packer-plugin-sylve project, ensuring consistent practices across all development activities.
+
+## Development Workflow
+
+### Branch Strategy
+
+- **Development Branch**: All active development happens on the `development` branch
+- **Main Branch**: Contains stable, release-ready code — **NEVER commit directly to main**
+- **Feature Branches**: Optional; create from `development` for complex features
+
+### Important: Main Branch Protection
+
+- **NEVER make commits directly to the `main` branch**
+- **NEVER push changes directly to `main`**
+- **The `main` branch is ONLY used for:**
+  1. Merging changes from `development` or feature branches
+  2. Creating version tags for releases
+  3. Hotfix branches (in emergency situations only)
+
+### Development Process
+
+1. All changes are made on the `development` branch
+2. Use conventional commit messages for all commits (see `git-commit.mdc`)
+3. Run quality checks before committing:
+
+```bash
+./bin/format_code.sh          # Apply formatting
+./bin/run_format_checks.sh    # Verify formatting
+./bin/run_linter_checks.sh    # Lint checks
+go test ./...                 # Unit tests
+```
+
+4. Push to `development`
+
+## Release Workflow
+
+### Release Preparation
+
+1. All planned features implemented and tested
+2. All quality gates passing (format, lint, tests)
+3. Documentation updated for new features
+4. Version bump determined (MAJOR.MINOR.PATCH)
+
+### Release Process
+
+**Use the automated release script:**
+
+```bash
+./bin/create_release.sh <version>
+```
+
+**What the release script does:**
+
+1. Validates you're on the `development` branch with a clean working directory
+2. Validates semantic version format
+3. Generates changelog using git-cliff
+4. Commits changelog to development
+5. Switches to main and merges development (fast-forward)
+6. Creates an annotated Git tag on `main` in **HashiCorp / Packer form**: `v` + SemVer (e.g. `v1.0.0` — see [Version Management](#version-management))
+7. Pushes everything to remote
+8. Returns to development branch
+
+### Manual Release (Alternative)
+
+```bash
+# 1. Generate changelog on development
+git checkout development
+git-cliff --output CHANGELOG.md
+git add CHANGELOG.md
+git commit --message "docs: update changelog for <version>"
+git push origin development
+
+# 2. Merge to main
+git checkout main
+git merge --ff-only development
+
+# 3. Tag and push (Git tag MUST use the v prefix — e.g. v0.1.0, not 0.1.0)
+git tag -a "v${version}" --message "Release v${version}"
+git push origin main --tags
+
+# 4. Return to development
+git checkout development
+```
+
+### Post-Release
+
+```bash
+git checkout development
+git merge main
+```
+
+### Hotfixes
+
+Only for emergency production fixes:
+
+```bash
+git checkout main
+git checkout -b hotfix/critical-fix
+# ... minimal fix ...
+git checkout main
+git merge hotfix/critical-fix
+git tag -a "v${patch-version}" --message "Hotfix v${patch-version}"
+git push origin main --tags
+git checkout development
+git merge main
+git push origin development
+```
+
+## Version Management
+
+### Semantic Versioning (SemVer) Requirement
+
+Use **SemVer** `X.Y.Z` for the version _value_ (what users see in `packer version` and templates):
+
+- **MAJOR (X)**: Breaking changes to the plugin config or builder API
+- **MINOR (Y)**: New backwards-compatible features
+- **PATCH (Z)**: Bug fixes, backwards-compatible changes
+- **Pre-release** (optional): `X.Y.Z-alpha.1`, `X.Y.Z-beta.1`, `X.Y.Z-rc.1`
+
+### Git tags and Packer releases (HashiCorp-style)
+
+**Git tags for releases MUST use a `v` prefix** (`vX.Y.Z`), matching [HashiCorp Packer plugin installation](https://developer.hashicorp.com/packer/docs/plugins/install-plugins) expectations and GitHub Releases (e.g. `v0.1.0`, `v1.2.3`).
+
+**Do not** put the `v` in `version/version.go`: keep **`Version = "0.1.0"`** (bare SemVer). The `v` is only for **Git** tags and release metadata, not for the string compiled into the binary.
+
+### Version Location
+
+The version is defined in `version/version.go` and may be overridden or augmented via goreleaser ldflags at release time.
+
+## Automated Changelog Integration
+
+git-cliff parses conventional commits to generate `CHANGELOG.md`. Configuration is in `cliff.toml`. The changelog is generated automatically by the release script.

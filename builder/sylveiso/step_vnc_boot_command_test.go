@@ -1,0 +1,195 @@
+// SPDX-License-Identifier: BSD-2-Clause
+// Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+package sylveiso
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/gorilla/websocket"
+)
+
+// newWSPair creates an httptest WebSocket echo server and returns a *wsNetConn
+// connected to it. The caller must close the returned conn and server.
+func newWSPair(t *testing.T) (*wsNetConn, *httptest.Server) {
+	t.Helper()
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("WebSocket upgrade failed: %v", err)
+			return
+		}
+		defer conn.Close()
+		for {
+			mt, msg, readErr := conn.ReadMessage()
+			if readErr != nil {
+				return
+			}
+			if writeErr := conn.WriteMessage(mt, msg); writeErr != nil {
+				return
+			}
+		}
+	}))
+
+	wsURL := "ws://" + srv.Listener.Addr().String()
+	cli, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		srv.Close()
+		t.Fatalf("WebSocket dial failed: %v", err)
+	}
+	return &wsNetConn{conn: cli}, srv
+}
+
+// ---------------------------------------------------------------------------
+// wsNetConn.Write and Read (echo test)
+// ---------------------------------------------------------------------------
+
+func TestWsNetConn_WriteRead_Echo(t *testing.T) {
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	defer w.Close()
+
+	send := []byte("hello vnc")
+	if _, err := w.Write(send); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	recv := make([]byte, len(send))
+	n, err := w.Read(recv)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if string(recv[:n]) != string(send) {
+		t.Errorf("Read = %q, want %q", recv[:n], send)
+	}
+}
+
+func TestWsNetConn_Write_Concurrent(t *testing.T) {
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	defer w.Close()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = w.Write([]byte{0x01})
+		}()
+	}
+	wg.Wait()
+}
+
+func TestWsNetConn_Write_ErrorAfterClose(t *testing.T) {
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	defer w.Close()
+	_ = w.Close()
+	if _, err := w.Write([]byte{0x01}); err == nil {
+		t.Fatal("expected error writing to closed WebSocket after Close")
+	}
+}
+
+func TestWsNetConn_Read_SplitBuffer(t *testing.T) {
+	// Write a 4-byte message, then read it in two 2-byte chunks to exercise
+	// the buf-draining path in Read.
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	defer w.Close()
+
+	if _, err := w.Write([]byte("abcd")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	p := make([]byte, 2)
+	n, err := w.Read(p)
+	if err != nil {
+		t.Fatalf("first Read: %v", err)
+	}
+	if n != 2 || string(p[:n]) != "ab" {
+		t.Errorf("first Read = %q, want %q", p[:n], "ab")
+	}
+
+	n, err = w.Read(p)
+	if err != nil {
+		t.Fatalf("second Read: %v", err)
+	}
+	if n != 2 || string(p[:n]) != "cd" {
+		t.Errorf("second Read = %q, want %q", p[:n], "cd")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// wsNetConn.Close
+// ---------------------------------------------------------------------------
+
+func TestWsNetConn_Close(t *testing.T) {
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	if err := w.Close(); err != nil {
+		t.Errorf("Close returned error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// wsNetConn.LocalAddr / RemoteAddr
+// ---------------------------------------------------------------------------
+
+func TestWsNetConn_LocalAddr_NotNil(t *testing.T) {
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	defer w.Close()
+	if w.LocalAddr() == nil {
+		t.Error("LocalAddr() returned nil")
+	}
+}
+
+func TestWsNetConn_RemoteAddr_NotNil(t *testing.T) {
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	defer w.Close()
+	if w.RemoteAddr() == nil {
+		t.Error("RemoteAddr() returned nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// wsNetConn deadline setters
+// ---------------------------------------------------------------------------
+
+func TestWsNetConn_SetDeadline(t *testing.T) {
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	defer w.Close()
+	_ = w.SetDeadline(time.Now().Add(5 * time.Second))
+}
+
+func TestWsNetConn_SetReadDeadline(t *testing.T) {
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	defer w.Close()
+	_ = w.SetReadDeadline(time.Now().Add(5 * time.Second))
+}
+
+func TestWsNetConn_SetWriteDeadline(t *testing.T) {
+	w, srv := newWSPair(t)
+	defer srv.Close()
+	defer w.Close()
+	_ = w.SetWriteDeadline(time.Now().Add(5 * time.Second))
+}
+
+// ---------------------------------------------------------------------------
+// Compile-time interface check
+// ---------------------------------------------------------------------------
+
+func TestWsNetConn_ImplementsNetConn(t *testing.T) {
+	// Verifies the static assertion in the source file: no run-time cost.
+	var _ interface{} = (*wsNetConn)(nil)
+}

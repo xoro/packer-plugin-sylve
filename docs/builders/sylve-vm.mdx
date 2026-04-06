@@ -1,0 +1,28 @@
+---
+modeline: |
+  vim: set ft=pandoc:
+description: |
+  The sylve-vm builder starts from an existing Sylve VM snapshot, runs
+  provisioners over SSH, and produces an updated artifact. This builder is
+  planned for a future release.
+page_title: Sylve VM - Builders
+nav_title: VM
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Sylve VM Builder
+
+Type: `sylve-vm`
+Artifact BuilderId: `xoro.sylvevm`
+
+~> **Note**: The `sylve-vm` builder is planned for a future release and is
+not yet implemented. See the [`sylve-iso`][docs-sylve-iso] builder for the
+currently available ISO-based builder.
+
+The `sylve-vm` builder will start from an existing Sylve VM snapshot instead
+of booting from an ISO image, run Packer provisioners over SSH, and produce
+an updated artifact.
+
+[docs-sylve-iso]: sylve-iso.mdx

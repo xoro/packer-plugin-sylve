@@ -1,0 +1,152 @@
+---
+description: "Test and quality script execution standards and inventory"
+auto_attach: ["**/bin/*.sh", "**/Makefile"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Test and Quality Script Standards
+
+## Overview
+
+This document defines the standards for executing quality and test scripts in the packer-plugin-sylve project. When running scripts, execute them repeatedly until all issues have been resolved.
+
+## Script Inventory
+
+All quality scripts live in `bin/`:
+
+| Script                         | Purpose                                         |
+| ------------------------------ | ----------------------------------------------- |
+| `bin/format_code.sh`           | Apply formatting to all file types (PRIMARY)    |
+| `bin/run_format_checks.sh`     | Verify formatting is correct (read-only)        |
+| `bin/run_linter_checks.sh`     | Run all linters (staticcheck, shellcheck, etc.) |
+| `bin/run_unit_tests.sh`        | Run Go unit tests with coverage                 |
+| `bin/run_leak_checks.sh`       | Run gitleaks secret scanning                    |
+| `bin/run_security_scanners.sh` | Run security vulnerability scanners             |
+| `bin/create_sbom.sh`           | Generate Software Bill of Materials             |
+| `bin/install_git_hooks.sh`     | Install pre-commit and commit-msg git hooks     |
+| `bin/run_example.sh`           | Run the example Packer template                 |
+| `bin/update_go_mods.sh`        | Update Go module dependencies                   |
+
+## Execution Strategy
+
+### Automatic Retry Workflow
+
+1. **Run the script** and capture the output
+2. **Analyze the output** for errors, warnings, or failures
+3. **Fix the issues** identified by the script
+4. **Re-run the script** to verify fixes
+5. **Repeat** until the script passes with no issues
+
+### Script Priorities
+
+#### High Priority (Run Before Commits)
+
+1. `bin/format_code.sh` — apply formatting
+2. `bin/run_format_checks.sh` — verify formatting
+3. `bin/run_linter_checks.sh` — code quality
+4. `go test ./...` — unit tests
+
+#### Medium Priority (Run Before Releases)
+
+5. `bin/run_security_scanners.sh` — security vulnerabilities
+6. `bin/run_leak_checks.sh` — secret scanning
+7. `bin/create_sbom.sh` — SBOM generation
+
+## Formatting
+
+### Primary Formatter: `bin/format_code.sh`
+
+This script formats ALL file types:
+
+- Go: `gofmt` (via treefmt)
+- Shell scripts: `shfmt --posix --indent 4` (via treefmt)
+- HCL/Packer: `packer fmt` (via treefmt)
+- TOML: `taplo` (via treefmt)
+- Markdown: `prettier` (via treefmt)
+- JSON: `prettier` (via treefmt)
+- C/H: `clang-format` (via treefmt)
+
+**Always run `bin/format_code.sh` when formatting is needed.**
+
+### Format Verification: `bin/run_format_checks.sh`
+
+Runs `treefmt --fail-on-change --verbose`. Returns non-zero if any file would be changed. Also verifies `make -n build` and `bmake -n build` are valid.
+
+**Fix pattern:**
+
+```bash
+# If run_format_checks.sh fails:
+./bin/format_code.sh
+./bin/run_format_checks.sh
+# Repeat until clean
+```
+
+## Linting
+
+### `bin/run_linter_checks.sh`
+
+Runs 8 linters in sequence:
+
+1. `staticcheck ./...` — Go static analysis
+2. `shellcheck --shell=sh bin/*.sh` — Shell script linting
+3. `packer validate -syntax-only` on `examples/` — HCL syntax
+4. `taplo lint` — TOML linting
+5. `jq empty` on all non-generated `.json` files — JSON validation
+6. `cppcheck` on `examples/` C files — C static analysis
+7. `markdownlint "**/*.md"` — Markdown linting
+8. `lychee --offline "**/*.md"` — Markdown link checking
+
+**Fix pattern:**
+
+```bash
+./bin/run_linter_checks.sh
+# Fix issues reported, then re-run
+./bin/run_linter_checks.sh
+# Repeat until all 8 steps succeed
+```
+
+## Unit Tests
+
+```bash
+go test ./...                    # All tests
+go test --count=1 --verbose ./... # Verbose output
+go test --run TestPrepare ./...   # Specific test
+./bin/run_unit_tests.sh           # With coverage report
+```
+
+## Security Scanning
+
+### `bin/run_security_scanners.sh`
+
+Runs 6 steps in sequence:
+
+1. SBOM creation
+2. `osv-scanner` — Open Source Vulnerability database
+3. `govulncheck` — Go vulnerability database
+4. `trivy` — Container and dependency scanning
+5. `semgrep` — Static analysis security rules
+6. `grype` — Vulnerability scanning
+
+### `bin/run_leak_checks.sh`
+
+Runs `gitleaks dir . --no-banner` to scan for secrets in the repository.
+
+## Pre-Commit Hook
+
+After running `./bin/install_git_hooks.sh`, every `git commit` automatically runs:
+
+1. `./bin/run_format_checks.sh` — formatting must be correct
+2. `./bin/run_linter_checks.sh` — linting must pass
+3. `./bin/run_leak_checks.sh` — no secrets in the commit
+
+The commit-msg hook validates the conventional commit format.
+
+## Best Practices
+
+- Never skip quality checks to save time
+- Fix issues immediately when found
+- Keep all scripts passing before committing
+- Run security scanners before releases

@@ -1,0 +1,68 @@
+---
+description: "Standards for creating and maintaining Cursor rules"
+auto_attach: ["**/.cursor/rules/*.mdc", "**/.cursorrules"]
+alwaysApply: true
+---
+
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+
+# Cursor Rule Standards
+
+## Overview
+
+This rule defines the standards for creating and maintaining Cursor rules in the packer-plugin-sylve project.
+
+## Rule File Requirements
+
+### Mandatory YAML Frontmatter Header
+
+Every Cursor rule file MUST have a proper YAML frontmatter header at the very beginning of the file:
+
+```yaml
+---
+description: "Brief description of what the rule covers"
+auto_attach: ["**/pattern1", "**/pattern2"]
+alwaysApply: true
+---
+```
+
+#### Header Components
+
+1. **description** (required): Clear, concise description of the rule's purpose — must be a quoted string
+2. **auto_attach** (required): Array of glob patterns for automatic attachment
+3. **alwaysApply** (optional): Set to `true` for rules that should always be active
+
+#### Common Header Mistakes
+
+```yaml
+# WRONG: Missing quotes around description
+description: Standards for shell scripts
+
+# WRONG: Not an array for auto_attach
+auto_attach: "**/*.sh"
+
+# CORRECT:
+description: "Standards for shell scripts"
+auto_attach: ["**/*.sh"]
+```
+
+### License Header
+
+Every rule file must include the BSD-2-Clause license header after the frontmatter:
+
+```markdown
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
+```
+
+### Rule File Location
+
+All rule files live in `.cursor/rules/` with a `.mdc` extension.
+
+### alwaysApply vs auto_attach
+
+- `alwaysApply: true` — rule is loaded for every request, regardless of files open
+- `auto_attach` — rule is attached when matching files are open or referenced
+- Use `alwaysApply: true` for universal rules (coding standards, git commit format)
+- Use `auto_attach` only for narrow, file-type-specific rules

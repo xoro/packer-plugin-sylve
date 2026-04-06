@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+# Gitleaks project config: extend upstream rules and exclude known non-repo
+# artifacts that may contain JWTs or other strings matching secret rules.
+
+title = "packer-plugin-sylve"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Packer debug log path (gitignored; may exist locally after bin/run_example.sh)"
+paths = ['''(?:^|/)packer\.log$''']

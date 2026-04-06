@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+# autoinstall(8) response file for OpenBSD.
+# Served over HTTP by Packer and fetched by the installer in Auto install mode.
+# The ${ssh_password} placeholder is rendered by Packer's templatefile()
+# before the file is served -- it is not a shell variable.
+#
+# Reference: https://man.openbsd.org/autoinstall
+
+System hostname = openbsd-packer
+Password for root account? = ${ssh_password}
+Allow root ssh login = yes
+Set name(s) = -g* -m* -x*
+Directory does not contain SHA256.sig. Continue without verification = yes
+Location of sets = cd0

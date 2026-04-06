@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+# Release: push an annotated tag v* (e.g. v0.1.2) to run GoReleaser and publish
+# GitHub Release artifacts. Requires GITHUB_TOKEN (default in Actions).
+#
+# v0.1.0 and v0.1.1 are manual releases (no GoReleaser); skip those tag refs.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    if: ${{ github.ref != 'refs/tags/v0.1.0' && github.ref != 'refs/tags/v0.1.1' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

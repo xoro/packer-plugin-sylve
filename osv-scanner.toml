@@ -1,0 +1,7 @@
+[[IgnoredVulns]]
+id = "GO-2022-0635"
+reason = "Transitive dep via packer-plugin-sdk/multistep/commonsteps -> go-getter/s3/v2 -> aws-sdk-go v1. No fix exists in the v1 series. The S3 getter is only activated when a user supplies an s3:// ISO URL; this plugin targets the Sylve/FreeBSD platform and is not expected to use S3 sources, making the attack surface effectively zero."
+
+[[IgnoredVulns]]
+id = "GO-2022-0646"
+reason = "Transitive dep via packer-plugin-sdk/multistep/commonsteps -> go-getter/s3/v2 -> aws-sdk-go v1. No fix exists in the v1 series. The S3 getter is only activated when a user supplies an s3:// ISO URL; this plugin targets the Sylve/FreeBSD platform and is not expected to use S3 sources, making the attack surface effectively zero."
