@@ -11,26 +11,28 @@ alwaysApply: true
 
 ## Overview
 
-This document defines the standards for executing quality and test scripts in the packer-plugin-sylve project. When running scripts, execute them repeatedly until all issues have been resolved.
+This document defines the standards for executing quality and test scripts in the packer-plugin-sylve project. When running
+scripts, execute them repeatedly until all issues have been resolved.
 
 ## Script Inventory
 
 All quality scripts live in `bin/`:
 
-| Script                           | Purpose                                                            |
-| -------------------------------- | ------------------------------------------------------------------ |
-| `bin/format_code.sh`             | Apply formatting to all file types (PRIMARY)                       |
-| `bin/run_format_checks.sh`       | Verify formatting is correct (read-only)                           |
-| `bin/run_linter_checks.sh`       | Run all linters (staticcheck, shellcheck, etc.)                    |
-| `bin/run_unit_tests.sh`          | Run Go unit tests with coverage                                    |
-| `bin/run_all.sh`                 | Full pipeline: format check, lint, tests, leaks, security          |
-| `bin/run_leak_checks.sh`         | Run gitleaks secret scanning                                       |
-| `bin/run_security_scanners.sh`   | Run security vulnerability scanners                                |
-| `bin/create_sbom.sh`             | Generate Software Bill of Materials                                |
-| `bin/install_git_hooks.sh`       | Install pre-commit and commit-msg git hooks                        |
-| `bin/run_example.sh`             | Run the example Packer template                                    |
-| `bin/update_go_mods.sh`          | Update Go module dependencies                                      |
-| `bin/build_release_artifacts.sh` | Manual GitHub release zips (v0.1.x; see `docs/GITHUB_RELEASES.md`) |
+| Script                                    | Purpose                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------ |
+| `bin/format_code.sh`                      | Apply formatting to all file types (PRIMARY)                       |
+| `bin/run_format_checks.sh`                | Verify formatting is correct (read-only)                           |
+| `bin/run_linter_checks.sh`                | Run all linters (staticcheck, shellcheck, etc.)                    |
+| `bin/run_unit_tests.sh`                   | Run Go unit tests with coverage                                    |
+| `bin/run_all.sh`                          | Full pipeline: format check, lint, tests, leaks, security          |
+| `bin/run_leak_checks.sh`                  | Run gitleaks secret scanning                                       |
+| `bin/run_security_scanners.sh`            | Run security vulnerability scanners                                |
+| `bin/create_sbom.sh`                      | Generate Software Bill of Materials                                |
+| `bin/install_git_hooks.sh`                | Install pre-commit and commit-msg git hooks                        |
+| `bin/run_example.sh`                      | Run the example Packer template                                    |
+| `bin/update_go_mods.sh`                   | Update Go module dependencies                                      |
+| `bin/build_release_artifacts.sh`          | Manual GitHub release zips (v0.1.x; see `docs/GITHUB_RELEASES.md`) |
+| `bin/publish_github_release_artifacts.sh` | Build (optional) and `gh` upload to GitHub Release (see same doc)  |
 
 ## Execution Strategy
 
@@ -53,9 +55,13 @@ All quality scripts live in `bin/`:
 
 #### Medium Priority (Run Before Releases)
 
+<!-- markdownlint-disable MD029 -->
+
 5. `bin/run_security_scanners.sh` — security vulnerabilities
 6. `bin/run_leak_checks.sh` — secret scanning
 7. `bin/create_sbom.sh` — SBOM generation
+
+<!-- markdownlint-enable MD029 -->
 
 ## Formatting
 
@@ -75,7 +81,9 @@ This script formats ALL file types:
 
 ### Format Verification: `bin/run_format_checks.sh`
 
-Runs `treefmt --fail-on-change --verbose`. Returns non-zero if any file would be changed. Also verifies `make -n build` and `bmake -n build` are valid.
+Runs `treefmt --fail-on-change --verbose`. Returns non-zero if any file would be changed.
+
+Also verifies `make -n build` and `bmake -n build` are valid.
 
 **Fix pattern:**
 

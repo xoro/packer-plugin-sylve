@@ -22,6 +22,29 @@ Use `--version` to build artifacts for an older release without editing
 Requires `go`, `zip`, and `sha256sum` (or `shasum` on macOS). When not using `--version`, re-run after changing
 `version/version.go` so embedded semver matches the release.
 
+## Automated upload (GitHub CLI)
+
+With [GitHub CLI](https://cli.github.com/) installed and authenticated (`gh auth login`), from the repository root:
+
+```sh
+./bin/publish_github_release_artifacts.sh --version 0.1.0
+```
+
+This runs `./bin/build_release_artifacts.sh --version 0.1.0`, then **`gh release upload`** to attach (or replace) the three
+files on the existing GitHub Release for tag **`v0.1.0`**. Use **`--no-build`** if you already built into
+`release-artifacts/0.1.0/`.
+
+**First-time release** (no GitHub Release page yet, but the git tag **`v0.1.0`** exists on the remote):
+
+```sh
+./bin/publish_github_release_artifacts.sh --version 0.1.0 --create
+```
+
+This uses **`gh release create`** with [`CHANGELOG.md`](../CHANGELOG.md) as release notes and uploads the same artifacts.
+If the release already exists, omit **`--create`** and use the default upload command above.
+
+Push the tag before publishing: `git push origin v0.1.0`.
+
 ## Contents per version
 
 Each `release-artifacts/vX.Y.Z/` directory should contain:
@@ -32,9 +55,10 @@ Each `release-artifacts/vX.Y.Z/` directory should contain:
 
 Rebuild after changing `version/version.go` so embedded semver matches the tag.
 
-## Publishing with GitHub CLI
+## Publishing with GitHub CLI (manual commands)
 
-From the repository root (with `gh` authenticated and permission to create releases):
+Prefer [`bin/publish_github_release_artifacts.sh`](../bin/publish_github_release_artifacts.sh) (see
+[Automated upload](#automated-upload-github-cli)). Equivalent manual invocations:
 
 ```sh
 gh release create v0.1.0 --repo xoro/packer-plugin-sylve --title "v0.1.0" --notes-file CHANGELOG.md \
@@ -43,8 +67,9 @@ gh release create v0.1.0 --repo xoro/packer-plugin-sylve --title "v0.1.0" --note
   release-artifacts/v0.1.0/packer-plugin-sylve_v0.1.0_SHA256SUMS
 ```
 
-Repeat for **v0.1.1** with the `v0.1.1` paths and tag. If `gh release create` fails with a permissions or scope
-error, create the release in the UI and upload the same files.
+Repeat for **v0.1.1** with the `v0.1.1` paths and tag.
+
+If `gh` fails with a permissions or scope error, create the release in the UI and upload the same files.
 
 ## From v0.1.2 onward
 

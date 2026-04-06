@@ -132,7 +132,7 @@ For a full local gate (format check, lint, unit tests with coverage, gitleaks, s
 
 For **manual** GitHub release bundles (same layout as GoReleaser for v0.1.x tags where Actions skips GoReleaser), see
 [`docs/GITHUB_RELEASES.md`](docs/GITHUB_RELEASES.md). Run `./bin/build_release_artifacts.sh` to produce the zips and checksum
-file.
+file; run `./bin/publish_github_release_artifacts.sh --version <X.Y.Z>` to build (optional) and upload with **`gh`**.
 
 ## Environment Variables
 
