@@ -7,11 +7,23 @@
 # Create Patch Release (bump, changelog, commit, tag, optional push)
 # ===============================================================================
 #
-# Increments the PATCH component of version/version.go (e.g. 0.1.2 -> 0.1.3),
-# inserts a new section into CHANGELOG.md (git-cliff when available), commits
-# with chore(release): X.Y.Z, creates annotated tag vX.Y.Z, and optionally pushes
-# main and the tag so GitHub Actions GoReleaser can publish artifacts (tags after
-# v0.1.0 / v0.1.1 per .github/workflows/release.yml).
+# End-to-end release pipeline (this script does the local steps; GitHub does the
+# rest after you push the tag):
+#
+#   create_release.sh --push
+#       -> git push origin <branch> && git push origin vX.Y.Z
+#       -> tag appears on GitHub
+#       -> GitHub Actions workflow ".github/workflows/release.yml" runs on tag v*
+#       -> GoReleaser (goreleaser release --clean) builds and uploads artifacts
+#       -> GitHub Release is created/updated for the tag with the binaries
+#
+# Tags v0.1.0 and v0.1.1 are excluded from that workflow (manual releases).
+#
+# This script:
+# - Increments the PATCH in version/version.go (e.g. 0.1.2 -> 0.1.3)
+# - Inserts a new section into CHANGELOG.md (git-cliff when available)
+# - Commits with chore(release): X.Y.Z and creates annotated tag vX.Y.Z
+# - With --push, publishes the branch and tag so the pipeline above runs
 #
 # The script performs the following tasks:
 # 1. Validate clean working tree and expected branch (default: main)
@@ -19,13 +31,13 @@
 # 3. Generate changelog snippet and insert it after the # Changelog heading
 # 4. Update version/version.go
 # 5. Run format, tests, and linters (unless --skip-checks)
-# 6. Commit, tag, and optionally push
+# 6. Commit, tag, and optionally push (push triggers CI + GoReleaser + GitHub Release)
 #
 # Usage:
 #   ./bin/create_release.sh [--dry-run] [--push] [--skip-checks] [--branch <name>]
 #
 #   --dry-run      Print actions only; no file or git changes
-#   --push         After commit and tag, run: git push origin <branch> && git push origin vX.Y.Z
+#   --push         Push branch and tag to origin (starts Actions -> GoReleaser -> GitHub Release)
 #   --skip-checks  Skip ./bin/format_code.sh, go test, ./bin/run_linter_checks.sh
 #   --branch NAME  Require current branch to be NAME (default: main)
 #
@@ -76,8 +88,9 @@ while [ "$#" -gt 0 ]; do
         ;;
     --help | -h)
         printf "Usage: %s [--dry-run] [--push] [--skip-checks] [--branch <name>]\n" "${script_name}"
-        printf "  Bump PATCH in version/version.go, update CHANGELOG.md, chore(release) commit, tag vX.Y.Z.\n"
-        printf "  Use --push to publish branch and tag (triggers GoReleaser for tags after v0.1.1).\n"
+        printf "  Bump PATCH, changelog, chore(release) commit, tag vX.Y.Z.\n"
+        printf "  With --push: git push -> GitHub Actions -> GoReleaser -> GitHub Release (see %s header).\n" "${script_name}"
+        printf "  Tags v0.1.0 and v0.1.1 skip GoReleaser per .github/workflows/release.yml.\n"
         exit 0
         ;;
     *)
@@ -133,8 +146,9 @@ if [ "${dry_run}" -eq 1 ]; then
     printf "%b %b INFO:  dry-run: would update version/version.go and CHANGELOG.md, commit, tag v%s\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${new_version}"
     if [ "${do_push}" -eq 1 ]; then
         printf "%b %b INFO:  dry-run: would push origin %s and tag v%s\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${required_branch}" "${new_version}"
+        printf "%b %b INFO:  dry-run: push would trigger GitHub Actions -> GoReleaser -> GitHub Release (see script header).\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
     else
-        printf "%b %b INFO:  dry-run: pass --push to push branch and tag after release\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+        printf "%b %b INFO:  dry-run: pass --push to push branch and tag (then Actions -> GoReleaser -> GitHub Release)\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
     fi
     exit 0
 fi
@@ -245,8 +259,13 @@ if [ "${do_push}" -eq 1 ]; then
         exit 4
     fi
     printf "%b %b INFO:  ==>> SUCCEEDED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
+    printf "%b %b INFO:  Next (automatic on GitHub): Actions workflow release -> GoReleaser -> GitHub Release v%s.\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${new_version}"
+    if [ "${new_version}" = "0.1.0" ] || [ "${new_version}" = "0.1.1" ]; then
+        printf "%b %b WARN:  Tag v%s is excluded from GoReleaser in release.yml; publish artifacts manually if needed.\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${new_version}"
+    fi
 else
     printf "%b %b INFO:  Next: git push origin %s && git push origin v%s\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${required_branch}" "${new_version}"
+    printf "%b %b INFO:  After push, GitHub runs Actions -> GoReleaser -> GitHub Release for v%s.\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${new_version}"
 fi
 
-printf "%b %b INFO:  Release v%s prepared (commit + tag v%s).\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${new_version}" "${new_version}"
+printf "%b %b INFO:  Local release v%s complete (commit + tag v%s).\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${new_version}" "${new_version}"
