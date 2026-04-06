@@ -7,9 +7,10 @@ HASHICORP_PACKER_PLUGIN_SDK_VERSION != go list -m github.com/hashicorp/packer-pl
 PLUGIN_FQN != grep -E '^module' go.mod | sed 's/module[[:space:]]*//' 
 VERSION != grep '^\tVersion' version/version.go | sed 's/.*"\(.*\)"/\1/'
 
-# PLUGIN_INSTALL_FQN is the source address used for local plugin installation.
-# Packer's init command only accepts github.com source addresses, so this
-# must be github.com/xoro/sylve regardless of the Go module host.
+# PLUGIN_INSTALL_FQN is the address passed to "packer plugins install" and used in
+# required_plugins.source. It is the short form github.com/<org>/<plugin-name>, not the
+# repository name: the repo is packer-plugin-<name> (see HashiCorp docs and e.g.
+# github.com/vmware/vmware for module github.com/vmware/packer-plugin-vmware).
 PLUGIN_INSTALL_FQN=github.com/xoro/sylve
 
 .PHONY: dev build test testacc generate install-packer-sdc plugin-check deploy-freebsd fmt fmt-check lint scan goreleaser-snapshot goreleaser-check
