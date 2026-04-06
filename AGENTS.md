@@ -49,6 +49,8 @@ PACKER_ACC=1 go test -count 1 -v ./... -timeout=120m
   [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `go test` on pushes and PRs.
 - **Local**: `make goreleaser-check` validates the config; `make goreleaser-snapshot` builds into `dist/` (snapshot
   mode; install the `goreleaser` CLI first).
+- **Manual GitHub uploads (v0.1.x)**: see [`docs/GITHUB_RELEASES.md`](docs/GITHUB_RELEASES.md); **branch protection**:
+  [`docs/BRANCH_PROTECTION.md`](docs/BRANCH_PROTECTION.md).
 
 Acceptance tests require `SYLVE_URL` and `SYLVE_TOKEN` to be set (see Environment Variables).
 

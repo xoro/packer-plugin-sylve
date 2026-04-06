@@ -17,18 +17,19 @@ This document defines the standards for executing quality and test scripts in th
 
 All quality scripts live in `bin/`:
 
-| Script                         | Purpose                                         |
-| ------------------------------ | ----------------------------------------------- |
-| `bin/format_code.sh`           | Apply formatting to all file types (PRIMARY)    |
-| `bin/run_format_checks.sh`     | Verify formatting is correct (read-only)        |
-| `bin/run_linter_checks.sh`     | Run all linters (staticcheck, shellcheck, etc.) |
-| `bin/run_unit_tests.sh`        | Run Go unit tests with coverage                 |
-| `bin/run_leak_checks.sh`       | Run gitleaks secret scanning                    |
-| `bin/run_security_scanners.sh` | Run security vulnerability scanners             |
-| `bin/create_sbom.sh`           | Generate Software Bill of Materials             |
-| `bin/install_git_hooks.sh`     | Install pre-commit and commit-msg git hooks     |
-| `bin/run_example.sh`           | Run the example Packer template                 |
-| `bin/update_go_mods.sh`        | Update Go module dependencies                   |
+| Script                         | Purpose                                                   |
+| ------------------------------ | --------------------------------------------------------- |
+| `bin/format_code.sh`           | Apply formatting to all file types (PRIMARY)              |
+| `bin/run_format_checks.sh`     | Verify formatting is correct (read-only)                  |
+| `bin/run_linter_checks.sh`     | Run all linters (staticcheck, shellcheck, etc.)           |
+| `bin/run_unit_tests.sh`        | Run Go unit tests with coverage                           |
+| `bin/run_all.sh`               | Full pipeline: format check, lint, tests, leaks, security |
+| `bin/run_leak_checks.sh`       | Run gitleaks secret scanning                              |
+| `bin/run_security_scanners.sh` | Run security vulnerability scanners                       |
+| `bin/create_sbom.sh`           | Generate Software Bill of Materials                       |
+| `bin/install_git_hooks.sh`     | Install pre-commit and commit-msg git hooks               |
+| `bin/run_example.sh`           | Run the example Packer template                           |
+| `bin/update_go_mods.sh`        | Update Go module dependencies                             |
 
 ## Execution Strategy
 
