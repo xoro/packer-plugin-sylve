@@ -12,7 +12,15 @@ From the repository root, generate that directory (matching [`.goreleaser.yml`](
 ./bin/build_release_artifacts.sh
 ```
 
-Requires `go`, `zip`, and `sha256sum` (or `shasum` on macOS). Re-run after changing [`version/version.go`](../version/version.go).
+Use `--version` to build artifacts for an older release without editing
+[`version/version.go`](../version/version.go) (for example **0.1.0** while the file says **0.1.1**):
+
+```sh
+./bin/build_release_artifacts.sh --version 0.1.0
+```
+
+Requires `go`, `zip`, and `sha256sum` (or `shasum` on macOS). When not using `--version`, re-run after changing
+`version/version.go` so embedded semver matches the release.
 
 ## Contents per version
 

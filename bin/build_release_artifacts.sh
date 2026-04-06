@@ -13,13 +13,17 @@
 # skipped in CI). See docs/GITHUB_RELEASES.md.
 #
 # The script performs the following tasks:
-# 1. Read version from version/version.go and module path from go.mod
+# 1. Resolve semver (from --version or version/version.go) and read module path from go.mod
 # 2. Build two binaries with production ldflags (Version, empty VersionPrerelease)
 # 3. Zip each binary with the Packer plugin filename pattern
 # 4. Write packer-plugin-sylve_v<version>_SHA256SUMS
 #
 # Usage:
 #   ./bin/build_release_artifacts.sh
+#   ./bin/build_release_artifacts.sh --version 0.1.0
+#
+# With --version, embedded semver and output paths use that value (e.g. rebuild v0.1.0
+# artifacts while version/version.go still says a newer release).
 #
 # Dependencies:
 # - go
@@ -29,7 +33,7 @@
 # Exit Codes:
 # 0 - Success
 # 1 - Could not change to repository root
-# 2 - Failed to read version or module path
+# 2 - Bad arguments, invalid --version value, or failed to read version/module path
 # 3 - Build or zip failed
 #
 # ===============================================================================
@@ -40,12 +44,53 @@ script_name="$(basename "${0}")"
 repo_root="$(cd "$(dirname "${0}")/.." && pwd)"
 cd "${repo_root}" || exit 1
 
-step_text="Reading version and module path from repository"
+version_override=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --version)
+        if [ "$#" -lt 2 ]; then
+            printf "%b %b ERROR: --version requires a value (e.g. 0.1.0)\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+            exit 2
+        fi
+        version_override="$2"
+        shift 2
+        ;;
+    --help | -h)
+        printf "Usage: %s [--version <X.Y.Z>]\n" "${script_name}"
+        printf "  Build release zips under release-artifacts/<version>/.\n"
+        printf "  If --version is omitted, read semver from version/version.go.\n"
+        exit 0
+        ;;
+    *)
+        printf "%b %b ERROR: unknown argument: <%b> (try --help)\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "$1"
+        exit 2
+        ;;
+    esac
+done
+
+if [ -n "${version_override}" ]; then
+    if ! printf '%s\n' "${version_override}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        printf "%b %b ERROR: --version must be MAJOR.MINOR.PATCH (digits and dots only), got <%b>\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${version_override}"
+        exit 2
+    fi
+fi
+
+step_text="Resolving version and reading module path from repository"
 printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
 plugin_fqn="$(grep -E '^module' go.mod | sed 's/module[[:space:]]*//')"
-version="$(grep '^\tVersion' version/version.go | sed 's/.*"\(.*\)"/\1/')"
-if [ -z "${plugin_fqn}" ] || [ -z "${version}" ]; then
-    printf "%b %b ERROR: ==>> FAILED: empty plugin_fqn or version\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+if [ -z "${plugin_fqn}" ]; then
+    printf "%b %b ERROR: ==>> FAILED: empty plugin_fqn from go.mod\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+    exit 2
+fi
+if [ -n "${version_override}" ]; then
+    version="${version_override}"
+    printf "%b %b DEBUG: version_source=<%b>\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "--version"
+else
+    version="$(grep '^\tVersion' version/version.go | sed 's/.*"\(.*\)"/\1/')"
+    printf "%b %b DEBUG: version_source=<%b>\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "version/version.go"
+fi
+if [ -z "${version}" ]; then
+    printf "%b %b ERROR: ==>> FAILED: empty version\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
     exit 2
 fi
 printf "%b %b DEBUG: plugin_fqn=<%b>\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${plugin_fqn}"
