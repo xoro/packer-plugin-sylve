@@ -61,5 +61,4 @@ checksum:
   algorithm: sha256
 
 changelog:
-  use: git-cliff
-  abbrev: -1
+  disable: true

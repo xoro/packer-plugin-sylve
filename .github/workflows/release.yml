@@ -44,6 +44,10 @@ jobs:
           sudo install --mode=755 \
             "$(find /tmp -maxdepth 2 -name git-cliff -type f)" \
             /usr/local/bin/git-cliff
+          git-cliff --version
+
+      - name: Generate changelog
+        run: git-cliff --latest --output /tmp/release-notes.md
 
       - name: Install syft
         uses: anchore/sbom-action/download-syft@v0
@@ -61,7 +65,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: release --clean --release-notes /tmp/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
