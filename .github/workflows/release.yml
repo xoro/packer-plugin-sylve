@@ -51,9 +51,10 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           PREV_TAG=$(git describe --abbrev=0 --tags "${TAG}^")
           echo "Generating changelog from ${PREV_TAG} to ${TAG}"
-          git-cliff "${PREV_TAG}..${TAG}" --output /tmp/release-notes.md
-          echo "Changelog content:"
+          git-cliff "${PREV_TAG}..${TAG}" --tag "${TAG}" --output /tmp/release-notes.md
+          echo "--- Changelog content ---"
           cat /tmp/release-notes.md
+          echo "--- End changelog ---"
 
       - name: Install syft
         uses: anchore/sbom-action/download-syft@v0
@@ -71,7 +72,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --release-notes /tmp/release-notes.md
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -83,3 +84,10 @@ jobs:
           VERSION="${TAG#v}"
           gh release upload "${TAG}" \
             "sbom.cdx.xml#packer-plugin-sylve_v${VERSION}_sbom.cdx.xml"
+
+      - name: Set release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release edit "${TAG}" --notes-file /tmp/release-notes.md
