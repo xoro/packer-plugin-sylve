@@ -3,6 +3,12 @@
 
 # Changelog
 
+## [0.1.6] - 2026-04-28
+
+### Bug Fixes
+
+- _(ci)_ Add --tag to git-cliff and use gh release edit for release body
+
 ## [0.1.5] - 2026-04-28
 
 ### Features
