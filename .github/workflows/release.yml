@@ -40,7 +40,12 @@ jobs:
         uses: anchore/sbom-action/download-syft@v0
 
       - name: Generate SBOM
-        run: syft scan dir:. --output cyclonedx-xml=sbom.cdx.xml
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          syft scan dir:. \
+            --source-name packer-plugin-sylve \
+            --source-version "${VERSION}" \
+            --output cyclonedx-xml=sbom.cdx.xml
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
