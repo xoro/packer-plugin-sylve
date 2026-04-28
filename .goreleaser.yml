@@ -60,6 +60,12 @@ checksum:
   name_template: "{{ .ProjectName }}_v{{ .Version }}_SHA256SUMS"
   algorithm: sha256
 
+sboms:
+  - artifacts: archive
+    documents:
+      - >-
+        {{ .ProjectName }}_v{{ .Version }}_{{ .Env.API_VERSION }}_{{ .Os }}_{{ .Arch }}.sbom.cdx.xml
+
 changelog:
   use: git-cliff
   abbrev: -1
