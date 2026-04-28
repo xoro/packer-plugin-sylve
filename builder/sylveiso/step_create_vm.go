@@ -13,6 +13,7 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
@@ -48,6 +49,36 @@ var randReadFn = rand.Read
 // isRemoteHostForVNCPort mirrors isRemoteHost for selectVNCPort; tests may
 // replace it to exercise the remote TCP probe branch without depending on DNS.
 var isRemoteHostForVNCPort = isRemoteHost
+
+// exclusiveListenFn attempts to bind addr on TCP without SO_REUSEADDR, so that
+// TIME_WAIT sockets left by previous VNC connections are detected as occupied.
+// Bhyve's fbuf device binds without SO_REUSEADDR; Go's net.Listen uses
+// SO_REUSEADDR and would silently succeed on a port with a TIME_WAIT socket,
+// causing bhyve to fail when it tries the same bind milliseconds later.
+// The function returns nil when the port is exclusively free, non-nil otherwise.
+// Overridable in tests to simulate TIME_WAIT conditions without real sockets.
+var exclusiveListenFn = func(addr string) error {
+	lc := net.ListenConfig{
+		Control: func(_, _ string, c syscall.RawConn) error {
+			var setSockoptErr error
+			if err := c.Control(func(fd uintptr) {
+				// Clear SO_REUSEADDR that Go's net package sets by default.
+				// The subsequent bind(2) then fails when a TIME_WAIT socket
+				// occupies the port, matching bhyve's behaviour.
+				setSockoptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
+			}); err != nil {
+				return err
+			}
+			return setSockoptErr
+		},
+	}
+	ln, err := lc.Listen(context.Background(), "tcp", addr)
+	if err != nil {
+		return err
+	}
+	_ = ln.Close()
+	return nil
+}
 
 // dialTCPForVNCPortProbe is the TCP dial used when VNCHost appears remote;
 // tests may replace it to simulate a successful probe without a real service.
@@ -356,11 +387,21 @@ func (s *StepCreateVM) selectVNCPort(c *client.Client, state multistep.StateBag)
 				continue
 			}
 		}
+		addr := fmt.Sprintf("127.0.0.1:%d", port)
+		// Verify the port is exclusively free before selecting it. Go's
+		// net.Listen uses SO_REUSEADDR and silently succeeds on ports with
+		// TIME_WAIT sockets left by previous VNC connections; bhyve binds
+		// without SO_REUSEADDR and would fail on the same port. Skipping
+		// TIME_WAIT ports here ensures the selected port is one bhyve can
+		// actually bind.
+		if err := exclusiveListenFn(addr); err != nil {
+			continue
+		}
 		// Bind the port now and keep the listener open. The view server will
 		// Accept() on this listener directly, eliminating any TOCTOU race.
 		// When Packer runs on the same host as Sylve this also catches Bhyve's
 		// loopback-bound ports (127.0.0.1:port).
-		ln, listenErr := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		ln, listenErr := net.Listen("tcp", addr)
 		if listenErr != nil {
 			continue
 		}

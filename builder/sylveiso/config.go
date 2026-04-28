@@ -8,8 +8,13 @@ package sylveiso
 import (
 	"errors"
 	"fmt"
+	"log"
+	"net"
 	"net/url"
 	"os"
+	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/packer-plugin-sdk/common"
@@ -18,6 +23,7 @@ import (
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
 	"github.com/hashicorp/packer-plugin-sdk/template/config"
 	"github.com/hashicorp/packer-plugin-sdk/template/interpolate"
+	"golang.org/x/crypto/ssh"
 )
 
 // Config is the configuration for the sylve-iso builder.
@@ -86,7 +92,8 @@ type Config struct {
 	RAM int `mapstructure:"ram"`
 
 	// StoragePool is the ZFS pool name on the Sylve host.
-	// Optional — when empty the plugin picks the first pool from Sylve's basic settings.
+	// Falls back to the SYLVE_POOL environment variable. When still empty the
+	// plugin picks the first pool from Sylve's basic settings.
 	StoragePool string `mapstructure:"storage_pool"`
 
 	// StorageSizeMB is the install disk size in MiB. Defaults to 65536.
@@ -99,7 +106,8 @@ type Config struct {
 	// Defaults to "virtio-blk".
 	StorageEmulationType string `mapstructure:"storage_emulation_type"`
 
-	// SwitchName is the name of a DHCP-enabled Sylve virtual switch. Required.
+	// SwitchName is the name of a DHCP-enabled Sylve virtual switch.
+	// Falls back to the SYLVE_SWITCH environment variable.
 	SwitchName string `mapstructure:"switch_name"`
 
 	// SwitchEmulationType is the NIC emulation type. Defaults to "e1000".
@@ -233,6 +241,12 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 	if c.SylveAuthType == "" {
 		c.SylveAuthType = "sylve"
 	}
+	if c.SwitchName == "" {
+		c.SwitchName = os.Getenv("SYLVE_SWITCH")
+	}
+	if c.StoragePool == "" {
+		c.StoragePool = os.Getenv("SYLVE_POOL")
+	}
 	if c.SylveAPILoginTimeout == "" {
 		if env := os.Getenv("SYLVE_API_LOGIN_TIMEOUT"); env != "" {
 			c.SylveAPILoginTimeout = env
@@ -351,6 +365,101 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 		errs = packersdk.MultiErrorAppend(errs, httpErrs...)
 	}
 
+	// Auto-bastion: when no explicit ssh_bastion_host is set, route SSH through
+	// the Sylve host so Packer does not need a direct route to the VM subnet.
+	// Skipped when Packer is already running on the Sylve host (VM subnet is
+	// directly reachable via the bridge interface).
+	// Auth resolution order:
+	//   explicit HCL ssh_bastion_* fields
+	//   > SYLVE_SSH_PROXY_KEY env
+	//   > ~/.ssh/config IdentityFile for the host
+	//   > default key paths (~/.ssh/id_ed25519, id_ecdsa_sk, id_ecdsa, id_dsa, id_rsa)
+	//   > SSH agent (SSHBastionAgentAuth = true)
+	if c.Config.SSHBastionHost == "" {
+		u, parseErr := url.Parse(c.SylveURL)
+		if parseErr == nil && u.Hostname() != "" && !sylveHostIsLocal(u.Hostname()) {
+			c.Config.SSHBastionHost = u.Hostname()
+			log.Printf("[DEBUG] sylve ssh-proxy: bastion host=%s (Sylve URL is remote)", c.Config.SSHBastionHost)
+
+			// Resolve username: explicit HCL > ~/.ssh/config User > $USER.
+			// SylveUser is the Sylve API account and is intentionally NOT used
+			// here — the SSH system user on the Sylve host is typically different
+			// from the Sylve web application user.
+			if c.Config.SSHBastionUsername == "" {
+				sshUser, sshKeyFile, sshProxyJump := sshConfigForHost(u.Hostname())
+				log.Printf("[DEBUG] sylve ssh-proxy: ~/.ssh/config lookup for %s: user=%q identityFile=%q proxyJump=%q",
+					u.Hostname(), sshUser, sshKeyFile, sshProxyJump)
+				if sshProxyJump != "" && strings.ToLower(sshProxyJump) != "none" {
+					log.Printf("[WARN] sylve ssh-proxy: ~/.ssh/config specifies ProxyJump=%q for host %s, "+
+						"but the plugin's built-in SSH bastion supports only one hop. "+
+						"The ProxyJump directive is ignored. "+
+						"If you need multi-hop access, establish a local port-forward first "+
+						"(e.g. ssh -fNL 2222:%s:22 %s) and set SYLVE_HOST=localhost with "+
+						"explicit ssh_bastion_host/ssh_bastion_port in HCL.",
+						sshProxyJump, u.Hostname(), u.Hostname(), sshProxyJump)
+				}
+				switch {
+				case sshUser != "":
+					c.Config.SSHBastionUsername = sshUser
+					log.Printf("[DEBUG] sylve ssh-proxy: bastion username=%q (from ~/.ssh/config)", c.Config.SSHBastionUsername)
+				default:
+					if u, ok := os.LookupEnv("USER"); ok && u != "" {
+						c.Config.SSHBastionUsername = u
+					}
+					log.Printf("[DEBUG] sylve ssh-proxy: bastion username=%q (from $USER)", c.Config.SSHBastionUsername)
+				}
+
+				// Resolve auth: explicit HCL fields already set? Leave them.
+				// Priority: SYLVE_SSH_PROXY_KEY env > ~/.ssh/config IdentityFile
+				// > OpenSSH default key paths > SSH agent. SylvePassword is
+				// intentionally excluded — it is the Sylve API password and is
+				// unrelated to the SSH system account on the Sylve host.
+				if c.Config.SSHBastionPassword == "" && c.Config.SSHBastionPrivateKeyFile == "" {
+					envKey := os.Getenv("SYLVE_SSH_PROXY_KEY")
+					switch {
+					case envKey != "":
+						c.Config.SSHBastionPrivateKeyFile = envKey
+						log.Printf("[DEBUG] sylve ssh-proxy: bastion auth=key (from SYLVE_SSH_PROXY_KEY)")
+					case sshKeyFile != "":
+						c.Config.SSHBastionPrivateKeyFile = sshKeyFile
+						log.Printf("[DEBUG] sylve ssh-proxy: bastion auth=key %q (from ~/.ssh/config)", sshKeyFile)
+					default:
+						// No explicit key configured. Mirror OpenSSH behaviour: probe
+						// default key paths before falling back to agent auth.
+						if home, homeErr := os.UserHomeDir(); homeErr == nil {
+							for _, name := range []string{"id_ed25519", "id_ecdsa_sk", "id_ecdsa", "id_dsa", "id_rsa"} {
+								keyPath := filepath.Join(home, ".ssh", name)
+								if _, statErr := os.Stat(keyPath); statErr == nil {
+									// Verify the key can be parsed without a passphrase.
+									// Skip FIDO2/hardware keys and passphrase-protected keys
+									// that require interactive input crypto/ssh cannot provide.
+									keyBytes, readErr := os.ReadFile(keyPath)
+									if readErr != nil {
+										log.Printf("[DEBUG] sylve ssh-proxy: skipping %q: read error: %v", keyPath, readErr)
+										continue
+									}
+									if _, parseErr := ssh.ParsePrivateKey(keyBytes); parseErr != nil {
+										log.Printf("[DEBUG] sylve ssh-proxy: skipping %q: not usable without passphrase (%v)", keyPath, parseErr)
+										continue
+									}
+									c.Config.SSHBastionPrivateKeyFile = keyPath
+									log.Printf("[DEBUG] sylve ssh-proxy: bastion auth=key %q (default key)", keyPath)
+									break
+								}
+							}
+						}
+						if c.Config.SSHBastionPrivateKeyFile == "" {
+							c.Config.SSHBastionAgentAuth = true
+							log.Printf("[DEBUG] sylve ssh-proxy: bastion auth=agent")
+						}
+					}
+				}
+			}
+		} else if parseErr == nil && u.Hostname() != "" {
+			log.Printf("[DEBUG] sylve ssh-proxy: skipping bastion — Sylve host %s is local", u.Hostname())
+		}
+	}
+
 	// Prepare communicator config (SSH fields).
 	if commErrs := c.Config.Prepare(&c.ctx); len(commErrs) > 0 {
 		errs = packersdk.MultiErrorAppend(errs, commErrs...)
@@ -361,4 +470,113 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 	}
 
 	return nil, nil, nil
+}
+
+// sylveHostIsLocal reports whether hostname resolves to an IP address that is
+// assigned to a local network interface. When true, Packer is running on the
+// same machine as Sylve and can reach the VM subnet directly — no SSH bastion
+// is needed.
+func sylveHostIsLocal(hostname string) bool {
+	// Loopback / literal localhost always means local.
+	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
+		return true
+	}
+
+	// Collect all local interface addresses.
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	localIPs := make(map[string]struct{}, len(addrs))
+	for _, a := range addrs {
+		switch v := a.(type) {
+		case *net.IPNet:
+			localIPs[v.IP.String()] = struct{}{}
+		case *net.IPAddr:
+			localIPs[v.IP.String()] = struct{}{}
+		}
+	}
+
+	// Resolve the hostname and check against local IPs.
+	resolved, err := net.LookupHost(hostname)
+	if err != nil {
+		return false
+	}
+	for _, ip := range resolved {
+		if _, ok := localIPs[ip]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// sshConfigForHost parses ~/.ssh/config and returns the User, first
+// IdentityFile, and ProxyJump configured for hostname. Returns empty strings
+// when the file cannot be read or no matching Host block is found.
+// Only the most common directives (Host, User, IdentityFile, ProxyJump) are
+// read; the parser handles * and ? wildcards in Host patterns.
+// The ProxyJump value is returned for diagnostic purposes only — the plugin's
+// built-in bastion supports a single hop and cannot honour ProxyJump chains.
+func sshConfigForHost(hostname string) (user, identityFile, proxyJump string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", "", ""
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".ssh", "config"))
+	if err != nil {
+		return "", "", ""
+	}
+
+	var inBlock bool
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		key := strings.ToLower(fields[0])
+		value := strings.Join(fields[1:], " ")
+		// Unquote simple double-quoted values.
+		value = strings.Trim(value, "\"")
+
+		if key == "host" {
+			inBlock = false
+			for _, pattern := range fields[1:] {
+				matched, matchErr := path.Match(strings.ToLower(pattern), strings.ToLower(hostname))
+				if matchErr == nil && matched {
+					inBlock = true
+					break
+				}
+			}
+			continue
+		}
+		if !inBlock {
+			continue
+		}
+		switch key {
+		case "user":
+			if user == "" {
+				user = value
+			}
+		case "identityfile":
+			if identityFile == "" {
+				if strings.HasPrefix(value, "~/") {
+					value = filepath.Join(home, value[2:])
+				}
+				identityFile = value
+			}
+		case "proxyjump":
+			if proxyJump == "" {
+				proxyJump = value
+			}
+		}
+		// Stop once all three values are found.
+		if user != "" && identityFile != "" && proxyJump != "" {
+			return user, identityFile, proxyJump
+		}
+	}
+	return user, identityFile, proxyJump
 }

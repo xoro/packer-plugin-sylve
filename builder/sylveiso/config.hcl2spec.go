@@ -215,9 +215,8 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"boot_key_interval":     &hcldec.AttrSpec{Name: "boot_key_interval", Type: cty.String, Required: false},
 		"boot_command":          &hcldec.AttrSpec{Name: "boot_command", Type: cty.List(cty.String), Required: false},
 		"shutdown_command":      &hcldec.AttrSpec{Name: "shutdown_command", Type: cty.String, Required: false},
-		"restart_after_install": &hcldec.AttrSpec{Name: "restart_after_install", Type: cty.Bool, Required: false},
-		"destroy":               &hcldec.AttrSpec{Name: "destroy", Type: cty.Bool, Required: false},
-		"keep_on_error":         &hcldec.AttrSpec{Name: "keep_on_error", Type: cty.Bool, Required: false},
+		"restart_after_install": &hcldec.AttrSpec{Name: "restart_after_install", Type: cty.Bool, Required: false}, "destroy": &hcldec.AttrSpec{Name: "destroy", Type: cty.Bool, Required: false},
+		"keep_on_error": &hcldec.AttrSpec{Name: "keep_on_error", Type: cty.Bool, Required: false},
 	}
 	return s
 }

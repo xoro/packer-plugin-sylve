@@ -451,6 +451,101 @@ func TestStepCreateVM_Run_RIDRetryThenSuccess(t *testing.T) {
 	}
 }
 
+func TestStepCreateVM_Run_ListVMsErrorDuringVNCPortSelection(t *testing.T) {
+	port := newFreeTCPPort(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/vm/simple" && r.Method == http.MethodGet {
+			http.Error(w, "list VMs failed", http.StatusInternalServerError)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	cfg := &Config{
+		SylveURL:             srv.URL,
+		SylveToken:           "tok",
+		TLSSkipVerify:        true,
+		VMName:               "packer-test",
+		StoragePool:          "tank",
+		SwitchName:           "sw",
+		VNCPortMin:           port,
+		VNCPortMax:           port,
+		VNCHost:              "127.0.0.1",
+		StorageSizeMB:        1024,
+		StorageType:          "zvol",
+		StorageEmulationType: "virtio-blk",
+		SwitchEmulationType:  "e1000",
+	}
+
+	step := &StepCreateVM{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+	state.Put("iso_uuid", "iso-uuid")
+
+	if got := step.Run(context.Background(), state); got != multistep.ActionHalt {
+		t.Fatalf("Run() = %v, want ActionHalt", got)
+	}
+	err, ok := state.Get("error").(error)
+	if !ok || err == nil || !strings.Contains(err.Error(), "vnc port selection") {
+		t.Fatalf("error = %v, want vnc port selection failure", state.Get("error"))
+	}
+}
+
+func TestStepCreateVM_selectVNCPort_SkipsPortWhenRemoteTCPProbeConnects(t *testing.T) {
+	lo, hi := twoConsecutiveFreeTCPPorts(t)
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", lo))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	oldHost := isRemoteHostForVNCPort
+	oldDial := dialTCPForVNCPortProbe
+	t.Cleanup(func() {
+		isRemoteHostForVNCPort = oldHost
+		dialTCPForVNCPortProbe = oldDial
+	})
+	isRemoteHostForVNCPort = func(string) bool { return true }
+	dialTCPForVNCPortProbe = net.DialTimeout
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/vm/simple" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(client.APIResponse[[]client.SimpleVM]{
+				Status: "ok",
+				Data:   []client.SimpleVM{},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	cfg := &Config{
+		SylveURL:      srv.URL,
+		SylveToken:    "tok",
+		TLSSkipVerify: true,
+		VNCHost:       "127.0.0.1",
+		VNCPortMin:    lo,
+		VNCPortMax:    hi,
+	}
+	step := &StepCreateVM{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	c := client.New(srv.URL, "tok", true)
+	if err := step.selectVNCPort(c, state); err != nil {
+		t.Fatalf("selectVNCPort: %v", err)
+	}
+	if cfg.VNCPort != hi {
+		t.Fatalf("VNCPort = %d, want %d (port %d occupied per remote TCP probe)", cfg.VNCPort, hi, lo)
+	}
+	ln2, ok := state.Get("vnc_view_listener").(net.Listener)
+	if !ok || ln2 == nil {
+		t.Fatal("expected vnc_view_listener in state")
+	}
+	_ = ln2.Close()
+}
+
 func TestStepCreateVM_Run_ContextCancelledDuringWaitForVM(t *testing.T) {
 	port := newFreeTCPPort(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

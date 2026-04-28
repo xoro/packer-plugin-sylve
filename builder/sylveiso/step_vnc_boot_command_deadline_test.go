@@ -5,6 +5,7 @@ package sylveiso
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -114,6 +115,85 @@ func TestStepVNCBootCommand_Run_VNCHandshakeExhaustsDeadline(t *testing.T) {
 		BootKeyInterval: 1 * time.Millisecond,
 	}
 
+	step := &StepVNCBootCommand{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+
+	if got := step.Run(context.Background(), state); got != multistep.ActionHalt {
+		t.Fatalf("Run() = %v, want ActionHalt", got)
+	}
+}
+
+// TestStepVNCBootCommand_Run_UDPDialFailsStillReachesWSDial covers the branch
+// where netDialUDPForHTTPIP fails so http_ip is not derived from the UDP trick.
+func TestStepVNCBootCommand_Run_UDPDialFailsStillReachesWSDial(t *testing.T) {
+	origUDP := netDialUDPForHTTPIP
+	netDialUDPForHTTPIP = func(network, address string) (net.Conn, error) {
+		return nil, errors.New("simulated udp dial failure")
+	}
+	t.Cleanup(func() { netDialUDPForHTTPIP = origUDP })
+
+	origD := vncStepDialRetryDelay
+	origO := vncStepOverallDeadline
+	vncStepDialRetryDelay = 1 * time.Millisecond
+	vncStepOverallDeadline = 25 * time.Millisecond
+	t.Cleanup(func() {
+		vncStepDialRetryDelay = origD
+		vncStepOverallDeadline = origO
+	})
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	cfg := &Config{
+		SylveURL:        srv.URL,
+		SylveToken:      "test-token",
+		VNCPort:         5900,
+		VNCHost:         "127.0.0.1",
+		TLSSkipVerify:   true,
+		BootWait:        "1ns",
+		BootCommand:     []string{"<wait1ms>"},
+		BootKeyInterval: 1 * time.Millisecond,
+	}
+	step := &StepVNCBootCommand{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+
+	if got := step.Run(context.Background(), state); got != multistep.ActionHalt {
+		t.Fatalf("Run() = %v, want ActionHalt", got)
+	}
+}
+
+// TestStepVNCBootCommand_Run_PlainHTTPSylveURLUsesWsScheme exercises the
+// http:// to ws:// substitution when SylveURL is not TLS.
+func TestStepVNCBootCommand_Run_PlainHTTPSylveURLUsesWsScheme(t *testing.T) {
+	origD := vncStepDialRetryDelay
+	origO := vncStepOverallDeadline
+	vncStepDialRetryDelay = 1 * time.Millisecond
+	vncStepOverallDeadline = 35 * time.Millisecond
+	t.Cleanup(func() {
+		vncStepDialRetryDelay = origD
+		vncStepOverallDeadline = origO
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	cfg := &Config{
+		SylveURL:        srv.URL,
+		SylveToken:      "tok",
+		VNCPort:         5900,
+		VNCHost:         "127.0.0.1",
+		TLSSkipVerify:   true,
+		BootWait:        "1ns",
+		BootCommand:     []string{},
+		VMName:          "vm",
+		BootKeyInterval: 1 * time.Millisecond,
+	}
 	step := &StepVNCBootCommand{Config: cfg}
 	state := new(multistep.BasicStateBag)
 	state.Put("ui", newMockUI())

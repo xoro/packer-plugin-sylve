@@ -135,14 +135,10 @@ func TestStepRestartAfterInstall_DisableISOErrorStillContinues(t *testing.T) {
 		case path == "/api/vm/stop/11" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == "/api/vm/11" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
-			n := atomic.AddInt32(&getVMCalls, 1)
-			vm := client.VM{ID: vmID, RID: vmRID, State: client.DomainStateNoState, StoppedAt: time.Time{}}
-			if n == 1 {
-				vm.StoppedAt = time.Now()
-			} else {
-				vm.State = client.DomainStateRunning
-			}
-			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
+			_ = atomic.AddInt32(&getVMCalls, 1)
+			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: client.VM{ID: vmID, RID: vmRID, State: client.DomainStateNoState, StoppedAt: time.Now()}})
+		case path == "/api/vm/simple/11" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
+			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == "/api/tasks/lifecycle/active/vm/110" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
 		case path == "/api/vm/start/11" && r.Method == http.MethodPost:

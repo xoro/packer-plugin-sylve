@@ -74,6 +74,15 @@ func TestGetRemoteFileSize_MalformedURL(t *testing.T) {
 	}
 }
 
+func TestGetRemoteFileSize_ContextAlreadyCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	size := getRemoteFileSize(ctx, "https://example.com/file.iso")
+	if size != 0 {
+		t.Errorf("cancelled context: size = %d, want 0", size)
+	}
+}
+
 func TestIsoProgressTracker_AdvanceNoOpWhenPctDoesNotIncrease(t *testing.T) {
 	pr, pw := io.Pipe()
 	defer pr.Close()
@@ -81,4 +90,50 @@ func TestIsoProgressTracker_AdvanceNoOpWhenPctDoesNotIncrease(t *testing.T) {
 	tracker := &isoProgressTracker{pw: pw, fakeTotalSz: 100, lastPct: 50}
 	tracker.advance(50)
 	tracker.advance(40)
+}
+
+func TestIsoProgressTracker_AdvanceWritesAndDoneCloses(t *testing.T) {
+	pr, pw := io.Pipe()
+	readDone := make(chan struct{})
+	var data []byte
+	var readErr error
+	go func() {
+		data, readErr = io.ReadAll(pr)
+		_ = pr.Close()
+		close(readDone)
+	}()
+
+	tracker := &isoProgressTracker{pw: pw, fakeTotalSz: 1000, lastPct: 0}
+	tracker.advance(50)
+	tracker.done()
+
+	<-readDone
+	if readErr != nil {
+		t.Fatalf("read fake progress bytes: %v", readErr)
+	}
+	// advance(50) writes 500; done() advances to 100% and writes another 500.
+	if len(data) != 1000 {
+		t.Fatalf("read %d bytes, want 1000", len(data))
+	}
+}
+
+func TestIsoProgressTracker_CancelClosesWithError(t *testing.T) {
+	pr, pw := io.Pipe()
+	tracker := &isoProgressTracker{pw: pw, fakeTotalSz: 100, lastPct: 0}
+	tracker.cancel()
+	_, err := io.ReadAll(pr)
+	if err == nil {
+		t.Fatal("expected error from cancel/CloseWithError")
+	}
+}
+
+func TestIsoProgressTracker_AdvanceSkipsWhenIntegerDeltaZero(t *testing.T) {
+	pr, pw := io.Pipe()
+	t.Cleanup(func() { _ = pr.Close(); _ = pw.Close() })
+	// Integer division: 1% of 1 byte is 0 — advance should not bump lastPct.
+	tracker := &isoProgressTracker{pw: pw, fakeTotalSz: 1, lastPct: 0}
+	tracker.advance(1)
+	if tracker.lastPct != 0 {
+		t.Fatalf("lastPct = %d, want 0 (no write when delta==0)", tracker.lastPct)
+	}
 }

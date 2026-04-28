@@ -42,6 +42,72 @@ var netDialUDPForHTTPIP = func(network, address string) (net.Conn, error) {
 	return net.Dial(network, address)
 }
 
+// localHTTPIPForSwitch returns the IP that the packer HTTP server should
+// advertise to the guest via {{ .HTTPIP }} when packer is running on the same
+// host as Sylve.
+//
+// The UDP-dial trick (dialing a UDP socket toward VNCHost) normally selects the
+// correct outbound source address. However, when packer runs on the Sylve host
+// itself, the dial destination (VNCHost) resolves to one of the machine's own
+// addresses. On most OS kernels, dialing to a local address routes through
+// loopback and returns 127.0.0.1 — a loopback address that guests on the VM
+// bridge cannot reach.
+//
+// This function detects that case and, when the candidate IP is loopback,
+// enumerates all local network interfaces to find the first non-loopback IPv4
+// unicast address that does not belong to the Sylve host's own external
+// interfaces (identified by resolving vncHost). That address will be the VM
+// bridge/switch interface IP (e.g. 10.200.0.1), which the guests can reach.
+//
+// netInterfaces is a variable so tests can inject a fake interface list.
+var netInterfaces = net.Interfaces
+
+func localHTTPIPForSwitch(candidateIP string, vncHost string) string {
+	ip := net.ParseIP(candidateIP)
+	if ip == nil || !ip.IsLoopback() {
+		return candidateIP
+	}
+
+	// Collect all IPs that belong to the Sylve host (re0 / external interface).
+	sylveHostIPs := map[string]bool{}
+	if addrs, err := net.LookupHost(vncHost); err == nil {
+		for _, a := range addrs {
+			sylveHostIPs[a] = true
+		}
+	}
+
+	ifaces, err := netInterfaces()
+	if err != nil {
+		return candidateIP
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ifIP net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ifIP = v.IP
+			case *net.IPAddr:
+				ifIP = v.IP
+			}
+			if ifIP == nil || ifIP.IsLoopback() || ifIP.To4() == nil {
+				continue
+			}
+			if sylveHostIPs[ifIP.String()] {
+				continue
+			}
+			return ifIP.String()
+		}
+	}
+	return candidateIP
+}
+
 // bootCommandData is the template context for interpolating VNC boot commands.
 type bootCommandData struct {
 	HTTPIP   string
@@ -116,10 +182,14 @@ func (s *StepVNCBootCommand) Run(ctx context.Context, state multistep.StateBag) 
 	// If http_ip was not set by an earlier step, derive the correct local
 	// source address by dialing a UDP socket toward the Sylve host — the
 	// kernel selects the right outbound interface without sending any packets.
+	// When packer runs on the Sylve host itself the dial returns a loopback
+	// address; localHTTPIPForSwitch detects that case and falls back to the
+	// VM bridge/switch interface IP instead.
 	if httpIP == nil || httpIP.(string) == "" {
 		if conn, err := netDialUDPForHTTPIP("udp", net.JoinHostPort(s.Config.VNCHost, "1")); err == nil {
-			httpIP = conn.LocalAddr().(*net.UDPAddr).IP.String()
+			candidate := conn.LocalAddr().(*net.UDPAddr).IP.String()
 			conn.Close()
+			httpIP = localHTTPIPForSwitch(candidate, s.Config.VNCHost)
 			state.Put("http_ip", httpIP.(string))
 		}
 	}
@@ -260,7 +330,15 @@ func (s *StepVNCBootCommand) Run(ctx context.Context, state multistep.StateBag) 
 		vncPort := ss.start(ctx, ln.(net.Listener))
 		ui.Say(fmt.Sprintf("VNC view server listening on localhost:%d — connect with any VNC viewer", vncPort))
 	} else {
-		ui.Say("VNC view server could not start: listener not found in state")
+		// The pre-bound listener was released before bhyve started so bhyve could
+		// bind its VNC port. Now that the upstream VNC connection is established,
+		// bind a fresh listener on any free port for local viewing.
+		if freshLN, freshErr := net.Listen("tcp", "127.0.0.1:0"); freshErr == nil {
+			vncPort := ss.start(ctx, freshLN)
+			ui.Say(fmt.Sprintf("VNC view server listening on localhost:%d — connect with any VNC viewer", vncPort))
+		} else {
+			ui.Say("VNC view server could not start: no available listener")
+		}
 	}
 
 	// Build the reconnect closure first so it can be stored on the view server

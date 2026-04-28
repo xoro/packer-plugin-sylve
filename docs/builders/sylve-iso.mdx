@@ -105,14 +105,18 @@ password pair. Exactly one authentication method must be provided.
   `"done"`. Supports HTTP, HTTPS, and any scheme accepted by Sylve.
 
 - `switch_name` (string) - Name of a DHCP-enabled Sylve virtual switch to
-  attach the VM's network interface to.
+  attach the VM's network interface to. Falls back to the `SYLVE_SWITCH`
+  environment variable.
 
 ### Connection Configuration
 
 **Optional**:
 
 - `sylve_url` (string) - Base URL of the Sylve instance including scheme and
-  port. Defaults to `https://localhost:8181`.
+  port. Defaults to `https://localhost:8181`. Alternatively set the
+  `SYLVE_HOST` environment variable to just the hostname (e.g.
+  `server.example.com`) and the plugin constructs `https://<host>:8181`
+  automatically.
 
 - `sylve_auth_type` (string) - Authentication type used in the login request.
   Valid values: `"sylve"` (native database account, default) or `"pam"`
@@ -122,6 +126,12 @@ password pair. Exactly one authentication method must be provided.
 - `tls_skip_verify` (bool) - Disables TLS certificate verification. Defaults
   to `true` because Sylve ships with a self-signed certificate. Set to `false`
   when using a trusted certificate.
+
+- `sylve_api_login_timeout` (string) - How long to keep retrying the initial
+  login when the Sylve API is unreachable (e.g. the service is still starting).
+  Accepts Go duration strings, e.g. `"2m"`, `"5m"`. Ignored when
+  `sylve_token` is set. Defaults to `"2m"`. Falls back to the
+  `SYLVE_API_LOGIN_TIMEOUT` environment variable.
 
 ### VM Hardware Configuration
 
@@ -152,8 +162,8 @@ guest power management and interrupt routing.
 **Optional**:
 
 - `storage_pool` (string) - ZFS pool name on the Sylve host to create the
-  install disk in. When empty, the plugin selects the first pool from Sylve's
-  basic settings.
+  install disk in. Falls back to the `SYLVE_POOL` environment variable. When
+  still empty, the plugin selects the first pool from Sylve's basic settings.
 
 - `storage_size_mb` (int) - Install disk size in MiB. Defaults to `65536`
   (64 GiB).
@@ -242,13 +252,73 @@ provisioning (e.g. for preseed or kickstart files).
 **Optional**:
 
 - `destroy` (bool) - Whether to delete the VM from Sylve after a successful
-  build. Defaults to `true`. Set to `false` to keep the VM running for
-  inspection. On error or cancellation the VM is always deleted regardless of
-  this setting.
+  build. Defaults to `false` (VM is kept). Set to `true` to delete the VM
+  after a successful build. On error, deletion follows `keep_on_error`; on
+  cancellation the VM is always deleted regardless of this setting.
 
 - `keep_on_error` (bool) - Whether to keep the VM alive when the build fails.
   Defaults to `false`. Set to `true` to keep the VM running for post-failure
   debugging (equivalent to `-on-error=abort`).
+
+### SSH Proxy Configuration
+
+When Packer runs on a different machine than Sylve (e.g. from macOS against a
+FreeBSD server), the provisioned VM's IP address (`10.x.x.x` on the Sylve
+virtual switch) is not directly routable from the Packer host. The plugin can
+automatically configure Packer's SSH communicator to use the Sylve host as an
+SSH bastion/jump host, so no static routes or VPN are required.
+
+This is **always active** when Packer is running on a different host than
+Sylve. It is automatically skipped when the Sylve URL resolves to a local
+interface address (i.e. Packer is running on the Sylve host itself), or when
+an explicit `ssh_bastion_host` field is already set in HCL.
+
+The plugin resolves bastion credentials in this order:
+
+1. Explicit `ssh_bastion_*` fields already set in HCL — used as-is.
+2. `SYLVE_SSH_PROXY_KEY` environment variable — path to a private key file.
+3. `~/.ssh/config` `IdentityFile` matching the Sylve hostname — picked up
+   automatically, no configuration required.
+4. Default key paths — `~/.ssh/id_ed25519`, `id_ecdsa_sk`, `id_ecdsa`,
+   `id_dsa`, `id_rsa` (in that order). Each file is tested with
+   `ssh.ParsePrivateKey`; passphrase-protected and FIDO2/hardware keys are
+   skipped. The first parseable key wins.
+5. SSH agent (`ssh_bastion_agent_auth = true`) — used when no key is
+   found or parseable.
+
+The bastion username is resolved in this order: explicit HCL
+`ssh_bastion_username` > `~/.ssh/config` `User` for the host > `$USER`.
+
+~> **Note**: `sylve_user` and `sylve_password` are **not** used for the
+bastion connection. They are Sylve API credentials and are unrelated to the
+SSH system account on the Sylve host. Configure the bastion SSH credentials
+via `~/.ssh/config`, `SYLVE_SSH_PROXY_KEY`, or explicit `ssh_bastion_*`
+HCL fields.
+
+~> **Note**: If your `~/.ssh/config` already has a `Host` entry for the Sylve
+hostname with `User` and `IdentityFile` set, no additional configuration is
+necessary — the plugin picks those values up automatically.
+
+~> **ProxyJump not supported**: The plugin's built-in bastion implements a
+single SSH hop (Packer → Sylve host → VM). `ProxyJump` directives found in
+`~/.ssh/config` for the Sylve hostname are detected and logged as a warning,
+but are **not** honoured — the pure-Go SSH client cannot chain jump hosts.
+If the Sylve host is only reachable through another jump box, establish a
+local port-forward first and then point the plugin at it:
+
+```shell
+# Forward local port 2222 → Sylve host port 22 through the jump box.
+ssh -fNL 2222:<sylve-host>:22 <jump-user>@<jump-box>
+```
+
+Then set `SYLVE_HOST=localhost` and, in your HCL source block, add:
+
+```hcl
+ssh_bastion_host = "localhost"
+ssh_bastion_port = 2222
+ssh_bastion_username = "<your-user>"
+ssh_bastion_private_key_file = "~/.ssh/id_ed25519"
+```
 
 ### Communicator Configuration
 
@@ -258,20 +328,31 @@ The builder uses the SSH communicator to run provisioners inside the guest.
 
 - `communicator` (string) - Communicator type. Defaults to `"ssh"`.
 
+- `pause_before_connecting` (duration string | ex: `"1h5m2s"`) - Wait this
+  duration after a successful connection attempt before beginning provisioning.
+  Useful when SSH becomes available before the guest is fully ready. Defaults to
+  no pause.
+
 **Optional** (SSH):
 
-- `ssh_username` (string) - SSH username. Defaults to `"root"`.
+- `ssh_username` (string) - The username to connect to SSH with. Defaults to
+  `"root"`.
 
-- `ssh_password` (string) - SSH password. Mutually exclusive with
-  `ssh_private_key_file`.
+- `ssh_password` (string) - A plaintext password to authenticate with SSH.
+  Mutually exclusive with `ssh_private_key_file`.
 
 - `ssh_private_key_file` (string) - Path to a PEM-encoded private key for SSH
-  authentication.
+  authentication. The `~` can be used in path and will be expanded to the home
+  directory of the current user.
 
-- `ssh_timeout` (string) - Maximum time to wait for an SSH connection.
-  Accepts Go duration strings. Defaults to `"5m"`.
+- `ssh_certificate_file` (string) - Path to a user certificate used to
+  authenticate with SSH. The `~` can be used in path and will be expanded to
+  the home directory of the current user.
 
-- `ssh_port` (int) - SSH port. Defaults to `22`.
+- `ssh_timeout` (duration string | ex: `"1h5m2s"`) - Maximum time to wait for
+  SSH to become available. Defaults to `"5m"`.
+
+- `ssh_port` (int) - The port to connect to SSH. Defaults to `22`.
 
 - `ssh_host` (string) - Override the SSH host. When empty the IP address
   assigned by the Sylve DHCP virtual switch is used.
@@ -279,11 +360,67 @@ The builder uses the SSH communicator to run provisioners inside the guest.
 - `ssh_handshake_attempts` (int) - Number of SSH handshake attempts before
   failing. Defaults to `10`.
 
-- `ssh_pty` (bool) - Allocate a pseudo-terminal for SSH sessions. Defaults
-  to `false`.
+- `ssh_pty` (bool) - Allocate a pseudo-terminal for SSH sessions. Defaults to
+  `false`.
+
+- `ssh_disable_agent_forwarding` (bool) - If `true`, SSH agent forwarding will
+  be disabled. Defaults to `false`.
+
+- `ssh_keep_alive_interval` (duration string | ex: `"1h5m2s"`) - How often to
+  send "keep alive" messages to the server. Set to a negative value (`-1s`) to
+  disable. Defaults to `5s`.
+
+- `ssh_read_write_timeout` (duration string | ex: `"1h5m2s"`) - The amount of
+  time to wait for a remote command to end. Disabled by default.
+
+**Optional** (SSH bastion):
+
+- `ssh_bastion_host` (string) - A bastion host to use for the actual SSH
+  connection. When set, the plugin's automatic bastion configuration is skipped
+  and these explicit fields are used instead.
+
+- `ssh_bastion_port` (int) - The port of the bastion host. Defaults to `22`.
+
+- `ssh_bastion_agent_auth` (bool) - If `true`, the local SSH agent will be
+  used to authenticate with the bastion host. Defaults to `false`.
+
+- `ssh_bastion_username` (string) - The username to connect to the bastion
+  host.
+
+- `ssh_bastion_password` (string) - The password to use to authenticate with
+  the bastion host.
+
+- `ssh_bastion_interactive` (bool) - If `true`, keyboard-interactive
+  authentication is used with the bastion host.
+
+- `ssh_bastion_private_key_file` (string) - Path to a PEM-encoded private key
+  file to use to authenticate with the bastion host. The `~` can be used in
+  path and will be expanded to the home directory of the current user.
+
+- `ssh_bastion_certificate_file` (string) - Path to a user certificate used to
+  authenticate with the bastion host. The `~` can be used in path and will be
+  expanded to the home directory of the current user.
 
 For additional SSH communicator options, refer to the
 [Packer SSH communicator documentation][docs-communicator-ssh].
+
+## Environment Variables
+
+All configuration fields that accept environment variable fallbacks are listed
+here for reference. HCL fields always take precedence over environment
+variables.
+
+| Environment Variable      | HCL Field / Purpose                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `SYLVE_HOST`              | Sets `sylve_url` as `https://<SYLVE_HOST>:8181` when `sylve_url` is not set in HCL. |
+| `SYLVE_TOKEN`             | `sylve_token` — pre-issued Bearer token.                                            |
+| `SYLVE_USER`              | `sylve_user` — login username.                                                      |
+| `SYLVE_PASSWORD`          | `sylve_password` — login password.                                                  |
+| `SYLVE_AUTH_TYPE`         | `sylve_auth_type` — `"sylve"` (default) or `"pam"`.                                 |
+| `SYLVE_API_LOGIN_TIMEOUT` | `sylve_api_login_timeout` — retry window for initial login. Defaults to `2m`.       |
+| `SYLVE_SWITCH`            | `switch_name` — DHCP-enabled virtual switch name.                                   |
+| `SYLVE_POOL`              | `storage_pool` — ZFS pool name. Plugin picks the first available pool when empty.   |
+| `SYLVE_SSH_PROXY_KEY`     | Path to an SSH private key used for the automatic SSH bastion connection.           |
 
 ## Related
 

@@ -5,6 +5,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"syscall"
 	"testing"
@@ -18,6 +19,9 @@ func TestIsRetriableTransportError_Nil(t *testing.T) {
 }
 
 func TestIsRetriableTransportError_SyscallErrors(t *testing.T) {
+	if !isRetriableTransportError(syscall.ECONNREFUSED) {
+		t.Error("ECONNREFUSED should be retriable")
+	}
 	if !isRetriableTransportError(syscall.ECONNRESET) {
 		t.Error("ECONNRESET should be retriable")
 	}
@@ -104,5 +108,12 @@ func TestIsRetriableLoginWaitError_GenericAPIErrorNotRetriable(t *testing.T) {
 	err := errors.New(`API error 400 on POST /auth/login: bad request`)
 	if IsRetriableLoginWaitError(err) {
 		t.Error("400 should not be retriable for login wait")
+	}
+}
+
+func TestIsRetriableLoginWaitError_WrappedTransportError(t *testing.T) {
+	err := fmt.Errorf("login round trip: %w", syscall.ECONNREFUSED)
+	if !IsRetriableLoginWaitError(err) {
+		t.Error("wrapped ECONNREFUSED should be retriable for login wait")
 	}
 }

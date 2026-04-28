@@ -25,7 +25,7 @@ var (
 	restartAfterInstallStartRetry     = 3 * time.Second
 	restartAfterInstallStartMaxWait   = 5 * time.Minute
 	restartAfterInstallRunningPoll    = 3 * time.Second
-	restartAfterInstallRunningMaxWait = 1 * time.Minute
+	restartAfterInstallRunningMaxWait = 3 * time.Minute
 )
 
 // StepRestartAfterInstall waits for the installer VM to stop (the Alpine
@@ -198,13 +198,13 @@ shutoffLoop:
 		}
 
 		if time.Now().After(runDeadline) {
-			err := fmt.Errorf("VM rid=%d did not reach Running state within 1 minute after restart", rid)
+			err := fmt.Errorf("VM rid=%d did not reach Running state within 3 minutes after restart", rid)
 			state.Put("error", err)
 			ui.Error(err.Error())
 			return multistep.ActionHalt
 		}
 
-		vm, err := c.GetVMByRID(rid)
+		vm, err := c.GetSimpleVMByRID(rid)
 		if err != nil {
 			ui.Say(fmt.Sprintf("Waiting for VM rid=%d to start (poll error: %s)", rid, err))
 			continue
@@ -215,7 +215,7 @@ shutoffLoop:
 			lastState = vm.State
 		}
 
-		if vm.State == client.DomainStateRunning || vm.State == client.DomainStateNoState {
+		if vm.State == client.DomainStateRunning || vm.State == client.DomainStateBlocked {
 			log.Printf("[DEBUG] VM rid=%d is running", rid)
 			// Reconnect the VNC view server to the new bhyve instance so a
 			// connected viewer can watch the installed-OS boot.  This runs

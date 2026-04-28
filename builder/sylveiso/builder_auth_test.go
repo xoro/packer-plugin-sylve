@@ -55,6 +55,41 @@ func TestEnsureAuth_PreexistingToken(t *testing.T) {
 	}
 }
 
+// TestEnsureAuth_UsesDefaultWaitBudgetWhenConfiguredZero covers ensureAuth when
+// sylveAPILoginTimeoutDur is zero: the login loop should use the 2-minute default.
+func TestEnsureAuth_UsesDefaultWaitBudgetWhenConfiguredZero(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/login" && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(client.APIResponse[client.LoginResponse]{
+				Status: "ok",
+				Data:   client.LoginResponse{Token: "session-token"},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	b := &Builder{config: Config{
+		SylveURL:      srv.URL,
+		SylveUser:     "alice",
+		SylvePassword: "secret",
+		SylveAuthType: "sylve",
+		TLSSkipVerify: true,
+	}}
+	b.config.sylveAPILoginTimeoutDur = 0
+
+	cleanup, err := b.ensureAuth(newMockUI())
+	if err != nil {
+		t.Fatalf("ensureAuth: %v", err)
+	}
+	if cleanup == nil {
+		t.Fatal("expected cleanup func")
+	}
+	cleanup()
+}
+
 func TestEnsureAuth_LoginAndLogout(t *testing.T) {
 	var logins, logouts int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -220,5 +255,54 @@ func TestEnsureAuth_TimesOutWaitingForAPI(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+// TestEnsureAuth_TruncatesRetrySleepToDeadline exercises ensureAuth when the
+// retry interval is larger than the time remaining until the login deadline.
+func TestEnsureAuth_TruncatesRetrySleepToDeadline(t *testing.T) {
+	orig := sylveLoginRetryInterval
+	sylveLoginRetryInterval = time.Minute
+	t.Cleanup(func() { sylveLoginRetryInterval = orig })
+
+	var n int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/login" && r.Method == http.MethodPost {
+			c := atomic.AddInt32(&n, 1)
+			if c == 1 {
+				http.Error(w, "bad", http.StatusServiceUnavailable)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(client.APIResponse[client.LoginResponse]{
+				Status: "ok",
+				Data:   client.LoginResponse{Token: "retry-token"},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	b := &Builder{config: Config{
+		SylveURL:      srv.URL,
+		SylveUser:     "alice",
+		SylvePassword: "secret",
+		SylveAuthType: "sylve",
+		TLSSkipVerify: true,
+	}}
+	b.config.sylveAPILoginTimeoutDur = 1500 * time.Millisecond
+
+	start := time.Now()
+	cleanup, err := b.ensureAuth(newMockUI())
+	if err != nil {
+		t.Fatalf("ensureAuth: %v", err)
+	}
+	cleanup()
+	if n != 2 {
+		t.Fatalf("login attempts = %d, want 2", n)
+	}
+	if time.Since(start) > 3*time.Second {
+		t.Fatalf("expected truncated sleep (deadline ~1.5s), took %v", time.Since(start))
 	}
 }

@@ -422,6 +422,84 @@ func TestDo_NoRetryOn500(t *testing.T) {
 	}
 }
 
+type errReadCloser struct{ err error }
+
+func (e errReadCloser) Read(p []byte) (int, error) { return 0, e.err }
+func (errReadCloser) Close() error                 { return nil }
+
+func TestDo_ReadResponseBodyError(t *testing.T) {
+	c := newTestClient("http://unused.example", "t")
+	c.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       errReadCloser{err: errors.New("simulated read failure")},
+			}, nil
+		}),
+	}
+	var out APIResponse[interface{}]
+	err := c.get("/ping", &out)
+	if err == nil {
+		t.Fatal("expected read error")
+	}
+	if !strings.Contains(err.Error(), "read response") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestDo_JSONDecodeErrorOnSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("not-json"))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, "t")
+	var out APIResponse[interface{}]
+	err := c.get("/ping", &out)
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+	if !strings.Contains(err.Error(), "decode response") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestDo_MarshalRequestBodyError(t *testing.T) {
+	c := newTestClient("http://unused.example", "t")
+	c.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("unexpected RoundTrip")
+		}),
+	}
+	body := map[string]interface{}{"x": make(chan int)}
+	err := c.do(http.MethodPost, "/ping", body, nil)
+	if err == nil {
+		t.Fatal("expected marshal error")
+	}
+	if !strings.Contains(err.Error(), "marshal request") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestGet_NewRequestInvalidBaseURL(t *testing.T) {
+	c := &Client{
+		BaseURL:    "http://192.168.0.1\r\n/evil",
+		Token:      "t",
+		HTTPClient: http.DefaultClient,
+	}
+	var out APIResponse[interface{}]
+	err := c.get("/ping", &out)
+	if err == nil {
+		t.Fatal("expected error from http.NewRequest")
+	}
+	if !strings.Contains(err.Error(), "build request") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 func TestIsRetriableLoginWaitError_401(t *testing.T) {
 	err := errors.New(`sylve login as "u": execute request POST /auth/login: API error 401 on POST /auth/login: {}`)
 	if IsRetriableLoginWaitError(err) {

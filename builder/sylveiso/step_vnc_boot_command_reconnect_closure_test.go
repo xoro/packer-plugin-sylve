@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -189,6 +190,105 @@ func TestStepVNCBootCommand_ReconnectClosure_ContextCancelledOnDialFailure(t *te
 	rcancel()
 	if err := rfn(rctx, newMockUI()); err == nil {
 		t.Fatal("expected error from cancelled reconnect context")
+	}
+}
+
+// TestStepVNCBootCommand_ReconnectClosure_VNCHandshakeRetriesBeforeSuccess
+// exercises the reconnect loop when the TCP side accepts but closes before
+// RFB completes, then a subsequent attempt gets a full minimal RFB server.
+func TestStepVNCBootCommand_ReconnectClosure_VNCHandshakeRetriesBeforeSuccess(t *testing.T) {
+	orig := vncReconnectRetryDelay
+	vncReconnectRetryDelay = 1 * time.Millisecond
+	t.Cleanup(func() { vncReconnectRetryDelay = orig })
+
+	rfbLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rfbLn.Close()
+	rfbAddr := rfbLn.Addr().String()
+
+	var acceptN int32
+	go func() {
+		for {
+			c, err := rfbLn.Accept()
+			if err != nil {
+				return
+			}
+			n := atomic.AddInt32(&acceptN, 1)
+			if n == 1 {
+				go func(conn net.Conn) {
+					defer conn.Close()
+					_ = serveMinimalRFB(conn)
+				}(c)
+				continue
+			}
+			if n == 2 {
+				_ = c.Close()
+				continue
+			}
+			go func(conn net.Conn) {
+				defer conn.Close()
+				_ = serveMinimalRFB(conn)
+			}(c)
+		}
+	}()
+
+	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/vnc/") {
+			http.NotFound(w, r)
+			return
+		}
+		wsConn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		tcpConn, err := net.Dial("tcp", rfbAddr)
+		if err != nil {
+			_ = wsConn.Close()
+			return
+		}
+		go bridgeWebSocketTCP(wsConn, tcpConn)
+	}))
+	defer srv.Close()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	cfg := &Config{
+		SylveURL:        srv.URL,
+		SylveToken:      "test-token",
+		VNCPort:         5900,
+		VNCHost:         "127.0.0.1",
+		TLSSkipVerify:   true,
+		BootWait:        "1ns",
+		BootCommand:     []string{"<wait1ms>"},
+		BootKeyInterval: 1 * time.Millisecond,
+	}
+
+	step := &StepVNCBootCommand{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+	state.Put("vnc_view_listener", ln)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	if got := step.Run(ctx, state); got != multistep.ActionContinue {
+		t.Fatalf("Run() = %v, want ActionContinue", got)
+	}
+
+	rfn := state.Get("vnc_reconnect").(vncReconnectFunc)
+	if err := rfn(context.Background(), newMockUI()); err != nil {
+		t.Fatalf("reconnect: %v", err)
+	}
+	if atomic.LoadInt32(&acceptN) < 3 {
+		t.Fatalf("expected at least 3 RFB accepts (initial + failed reconnect + success), got %d", acceptN)
 	}
 }
 

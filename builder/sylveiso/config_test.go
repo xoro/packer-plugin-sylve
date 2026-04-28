@@ -4,6 +4,14 @@
 package sylveiso
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
+	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -101,6 +109,10 @@ func TestConfig_Defaults_SylveURL_ExplicitWins(t *testing.T) {
 }
 
 func TestConfig_Defaults_AuthType(t *testing.T) {
+	// Force the builtin default branch: if SYLVE_AUTH_TYPE is set in the
+	// process environment, the "default to sylve" block in Prepare is skipped
+	// and total coverage drops below the repo threshold.
+	t.Setenv("SYLVE_AUTH_TYPE", "")
 	c, err := prepare(minimalValid())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -723,5 +735,610 @@ func TestConfig_Prepare_SylveAPILoginTimeoutFromEnv(t *testing.T) {
 	}
 	if c.sylveAPILoginTimeoutDur != 45*time.Second {
 		t.Fatalf("sylveAPILoginTimeoutDur = %v, want 45s", c.sylveAPILoginTimeoutDur)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// sylveHostIsLocal
+// ---------------------------------------------------------------------------
+
+func TestSylveHostIsLocal_Localhost(t *testing.T) {
+	if !sylveHostIsLocal("localhost") {
+		t.Error("localhost should be local")
+	}
+}
+
+func TestSylveHostIsLocal_Loopback127(t *testing.T) {
+	if !sylveHostIsLocal("127.0.0.1") {
+		t.Error("127.0.0.1 should be local")
+	}
+}
+
+func TestSylveHostIsLocal_LoopbackIPv6(t *testing.T) {
+	if !sylveHostIsLocal("::1") {
+		t.Error("::1 should be local")
+	}
+}
+
+func TestSylveHostIsLocal_RemoteHost(t *testing.T) {
+	if sylveHostIsLocal("192.0.2.1") {
+		t.Error("192.0.2.1 (TEST-NET) should not be local")
+	}
+}
+
+func TestSylveHostIsLocal_UnresolvableHost(t *testing.T) {
+	if sylveHostIsLocal("this.host.does.not.exist.invalid") {
+		t.Error("unresolvable host should not be local")
+	}
+}
+
+func TestSylveHostIsLocal_IPAssignedToLocalInterface(t *testing.T) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Fatalf("InterfaceAddrs: %v", err)
+	}
+	for _, a := range addrs {
+		var ip net.IP
+		switch v := a.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		if ip == nil || ip.IsLoopback() {
+			continue
+		}
+		if ip4 := ip.To4(); ip4 != nil {
+			if !sylveHostIsLocal(ip4.String()) {
+				t.Fatalf("sylveHostIsLocal(%s) = false, want true", ip4)
+			}
+			return
+		}
+	}
+	t.Skip("no non-loopback IPv4 address found on interfaces")
+}
+
+// ---------------------------------------------------------------------------
+// SSH bastion auto-config
+// ---------------------------------------------------------------------------
+
+func TestConfig_SSHProxy_NotApplied_WhenLocalhost(t *testing.T) {
+	// Sylve URL pointing at localhost: plugin is on the Sylve host, no bastion.
+	t.Setenv("SYLVE_SSH_PROXY_KEY", "")
+	raw := map[string]interface{}{
+		"sylve_url":        "https://localhost:8181",
+		"sylve_user":       "admin",
+		"sylve_password":   "secret",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "packer-switch",
+		"ssh_username":     "root",
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionHost != "" {
+		t.Errorf("SSHBastionHost = %q, want empty (local Sylve host)", c.Config.SSHBastionHost)
+	}
+}
+
+func TestConfig_SSHProxy_Applied_WhenRemoteHost(t *testing.T) {
+	// Sylve URL pointing at a non-local IP: bastion should be configured.
+	// With no ~/.ssh/config entry for the host the username falls to $USER
+	// and auth falls to the SSH agent. SylveUser/SylvePassword are NOT used
+	// for the bastion — they are Sylve API credentials, not SSH system credentials.
+	t.Setenv("SYLVE_SSH_PROXY_KEY", "")
+	t.Setenv("USER", "testuser")
+	// Point HOME at an empty dir so sshConfigForHost finds no ~/.ssh/config.
+	t.Setenv("HOME", t.TempDir())
+	raw := map[string]interface{}{
+		"sylve_url":        "https://192.0.2.1:8181",
+		"sylve_user":       "admin",
+		"sylve_password":   "secret",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "packer-switch",
+		"ssh_username":     "root",
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionHost != "192.0.2.1" {
+		t.Errorf("SSHBastionHost = %q, want %q", c.Config.SSHBastionHost, "192.0.2.1")
+	}
+	if c.Config.SSHBastionUsername != "testuser" {
+		t.Errorf("SSHBastionUsername = %q, want %q (from $USER)", c.Config.SSHBastionUsername, "testuser")
+	}
+	// SylvePassword must NOT be forwarded to the bastion.
+	if c.Config.SSHBastionPassword != "" {
+		t.Errorf("SSHBastionPassword = %q, want empty (Sylve API password not used for SSH bastion)", c.Config.SSHBastionPassword)
+	}
+	// No key or password available — should fall back to SSH agent.
+	if !c.Config.SSHBastionAgentAuth {
+		t.Error("SSHBastionAgentAuth = false, want true (no key/password; fall back to agent)")
+	}
+}
+
+func TestConfig_SSHProxy_UsesSYLVE_SSH_PROXY_KEY(t *testing.T) {
+	t.Setenv("USER", "testuser")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	keyPath := filepath.Join(home, "bastion-from-env.pem")
+	generateTestPrivateKey(t, keyPath)
+	t.Setenv("SYLVE_SSH_PROXY_KEY", keyPath)
+	raw := map[string]interface{}{
+		"sylve_url":        "https://192.0.2.1:8181",
+		"sylve_user":       "admin",
+		"sylve_password":   "secret",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "packer-switch",
+		"ssh_username":     "root",
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionPrivateKeyFile != keyPath {
+		t.Fatalf("SSHBastionPrivateKeyFile = %q, want %q", c.Config.SSHBastionPrivateKeyFile, keyPath)
+	}
+	if c.Config.SSHBastionAgentAuth {
+		t.Error("SSHBastionAgentAuth = true, want false when SYLVE_SSH_PROXY_KEY is set")
+	}
+}
+
+func TestConfig_SSHProxy_UsesAgentAuth_WhenTokenOnly(t *testing.T) {
+	// Token-only auth: no password to forward to bastion.
+	// Bastion is still configured; SSH agent auth is used instead.
+	t.Setenv("SYLVE_SSH_PROXY_KEY", "")
+	t.Setenv("SYLVE_USER", "")
+	t.Setenv("SYLVE_PASSWORD", "")
+	// Point HOME at an empty dir so default key probing finds nothing.
+	t.Setenv("HOME", t.TempDir())
+	raw := map[string]interface{}{
+		"sylve_url":        "https://192.0.2.1:8181",
+		"sylve_token":      "tok",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "packer-switch",
+		"ssh_username":     "root",
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionHost != "192.0.2.1" {
+		t.Errorf("SSHBastionHost = %q, want %q", c.Config.SSHBastionHost, "192.0.2.1")
+	}
+	if !c.Config.SSHBastionAgentAuth {
+		t.Error("SSHBastionAgentAuth = false, want true (no password/key available, fall back to agent)")
+	}
+	if c.Config.SSHBastionPassword != "" {
+		t.Errorf("SSHBastionPassword = %q, want empty", c.Config.SSHBastionPassword)
+	}
+}
+
+func TestConfig_SSHProxy_UsesDefaultKey_WhenNoConfigAndNoEnv(t *testing.T) {
+	// When ~/.ssh/config has no IdentityFile and SYLVE_SSH_PROXY_KEY is unset,
+	// the plugin must probe OpenSSH default key paths (~/.ssh/id_ed25519 etc.)
+	// before falling back to agent auth.
+	t.Setenv("SYLVE_SSH_PROXY_KEY", "")
+	t.Setenv("USER", "testuser")
+
+	// Create a temp HOME with an empty .ssh/config (no IdentityFile) but with
+	// a valid id_ed25519 key file present.
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	sshDir := filepath.Join(homeDir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		t.Fatalf("mkdir .ssh: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sshDir, "config"), []byte("Host 192.0.2.1\n\tUser testuser\n"), 0600); err != nil {
+		t.Fatalf("write ssh config: %v", err)
+	}
+	expectedKey := filepath.Join(sshDir, "id_ed25519")
+	generateTestPrivateKey(t, expectedKey)
+
+	raw := map[string]interface{}{
+		"sylve_url":        "https://192.0.2.1:8181",
+		"sylve_user":       "admin",
+		"sylve_password":   "secret",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "packer-switch",
+		"ssh_username":     "root",
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionPrivateKeyFile != expectedKey {
+		t.Errorf("SSHBastionPrivateKeyFile = %q, want %q (default key discovery)", c.Config.SSHBastionPrivateKeyFile, expectedKey)
+	}
+	if c.Config.SSHBastionAgentAuth {
+		t.Error("SSHBastionAgentAuth = true, want false (default key should be used)")
+	}
+	if c.Config.SSHBastionPassword != "" {
+		t.Errorf("SSHBastionPassword = %q, want empty", c.Config.SSHBastionPassword)
+	}
+}
+
+// generateTestPrivateKey writes a valid PEM-encoded EC private key to path so
+// that communicator.Config.Prepare() can parse it without error.
+func generateTestPrivateKey(t *testing.T, keyPath string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate test key: %v", err)
+	}
+	der, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatalf("marshal test key: %v", err)
+	}
+	f, err := os.Create(keyPath)
+	if err != nil {
+		t.Fatalf("create key file: %v", err)
+	}
+	defer f.Close()
+	if err := pem.Encode(f, &pem.Block{Type: "EC PRIVATE KEY", Bytes: der}); err != nil {
+		t.Fatalf("encode test key: %v", err)
+	}
+}
+
+func TestSshConfigForHost_FirstIdentityFileWins(t *testing.T) {
+	cfg := `
+Host h.example.com
+  IdentityFile ~/.ssh/first
+  IdentityFile ~/.ssh/second
+`
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, ".ssh"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".ssh", "config"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	_, keyFile, _ := sshConfigForHost("h.example.com")
+	want := filepath.Join(tmp, ".ssh", "first")
+	if keyFile != want {
+		t.Fatalf("identityFile = %q, want %q", keyFile, want)
+	}
+}
+
+func TestSshConfigForHost_ExactMatch(t *testing.T) {
+	cfg := `
+Host myhost.example.com
+  User deploy
+  IdentityFile ~/.ssh/id_ed25519
+`
+	// Override UserHomeDir by writing a real file and patching via the helper.
+	// sshConfigForHost reads from os.UserHomeDir()/.ssh/config, so we write
+	// there via a temp dir trick using os.Setenv("HOME").
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, ".ssh"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".ssh", "config"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	user, keyFile, _ := sshConfigForHost("myhost.example.com")
+	if user != "deploy" {
+		t.Errorf("user = %q, want %q", user, "deploy")
+	}
+	wantKey := filepath.Join(tmp, ".ssh", "id_ed25519")
+	if keyFile != wantKey {
+		t.Errorf("identityFile = %q, want %q", keyFile, wantKey)
+	}
+}
+
+func TestSshConfigForHost_WildcardMatch(t *testing.T) {
+	cfg := `
+Host *.example.com
+  User wildcard
+`
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, ".ssh"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".ssh", "config"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	user, _, _ := sshConfigForHost("other.example.com")
+	if user != "wildcard" {
+		t.Errorf("user = %q, want %q", user, "wildcard")
+	}
+}
+
+func TestSshConfigForHost_NoMatch(t *testing.T) {
+	cfg := `
+Host someother.host
+  User nobody
+`
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, ".ssh"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".ssh", "config"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	user, keyFile, _ := sshConfigForHost("192.0.2.1")
+	if user != "" || keyFile != "" {
+		t.Errorf("expected empty results, got user=%q keyFile=%q", user, keyFile)
+	}
+}
+
+func TestSshConfigForHost_ShortLineSkipped(t *testing.T) {
+	cfg := `
+Host short.example.com
+  User
+  IdentityFile ~/.ssh/id_ed25519
+`
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, ".ssh"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".ssh", "config"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	user, keyFile, _ := sshConfigForHost("short.example.com")
+	if user != "" {
+		t.Errorf("malformed User line should not set user, got %q", user)
+	}
+	wantKey := filepath.Join(tmp, ".ssh", "id_ed25519")
+	if keyFile != wantKey {
+		t.Errorf("identityFile = %q, want %q", keyFile, wantKey)
+	}
+}
+
+func TestSshConfigForHost_InvalidHostPatternDoesNotMatch(t *testing.T) {
+	// '[' is an invalid path.Match pattern; matching fails and the block is ignored.
+	cfg := `
+Host [
+  User shouldnotapply
+`
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, ".ssh"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".ssh", "config"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	user, _, _ := sshConfigForHost("any.host")
+	if user != "" {
+		t.Errorf("user = %q, want empty (invalid Host pattern)", user)
+	}
+}
+
+func TestConfig_Prepare_HTTPConfigInvalidPortRange(t *testing.T) {
+	raw := minimalValid()
+	raw["http_port_min"] = 9999
+	raw["http_port_max"] = 8000
+	_, err := prepare(raw)
+	if err == nil {
+		t.Fatal("expected error from HTTPConfig.Prepare for invalid port range")
+	}
+}
+
+func TestConfig_SSHProxy_SkipsSSHConfigWhenBastionUsernamePreset(t *testing.T) {
+	t.Setenv("SYLVE_SSH_PROXY_KEY", "")
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	raw := map[string]interface{}{
+		"sylve_url":              "https://192.0.2.1:8181",
+		"sylve_token":            "tok",
+		"iso_download_url":       "https://example.com/os.iso",
+		"switch_name":            "sw",
+		"ssh_username":           "root",
+		"ssh_bastion_username":   "preset-jump-user",
+		"ssh_bastion_agent_auth": true,
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionHost != "192.0.2.1" {
+		t.Fatalf("SSHBastionHost = %q", c.Config.SSHBastionHost)
+	}
+	if c.Config.SSHBastionUsername != "preset-jump-user" {
+		t.Fatalf("SSHBastionUsername = %q, want preset from HCL", c.Config.SSHBastionUsername)
+	}
+}
+
+func TestConfig_SSHProxy_DefaultKeyProbeSkipsUnparseableKeyFile(t *testing.T) {
+	t.Setenv("SYLVE_SSH_PROXY_KEY", "")
+	tmp := t.TempDir()
+	sshDir := filepath.Join(tmp, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sshDir, "id_ed25519"), []byte("not a private key\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	rsaKey := filepath.Join(sshDir, "id_rsa")
+	generateTestPrivateKey(t, rsaKey)
+	if err := os.WriteFile(filepath.Join(sshDir, "config"), []byte(""), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	raw := map[string]interface{}{
+		"sylve_url":        "https://192.0.2.1:8181",
+		"sylve_token":      "tok",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "sw",
+		"ssh_username":     "root",
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionPrivateKeyFile != rsaKey {
+		t.Fatalf("SSHBastionPrivateKeyFile = %q, want %q (skip bad id_ed25519)", c.Config.SSHBastionPrivateKeyFile, rsaKey)
+	}
+}
+
+func TestConfig_SSHProxy_DefaultKeyProbeSkipsDirectoryNamedLikeKey(t *testing.T) {
+	t.Setenv("SYLVE_SSH_PROXY_KEY", "")
+	tmp := t.TempDir()
+	sshDir := filepath.Join(tmp, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	// First default name is id_ed25519; a directory at that path makes ReadFile fail.
+	if err := os.Mkdir(filepath.Join(sshDir, "id_ed25519"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	rsaKey := filepath.Join(sshDir, "id_rsa")
+	generateTestPrivateKey(t, rsaKey)
+	if err := os.WriteFile(filepath.Join(sshDir, "config"), []byte(""), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	raw := map[string]interface{}{
+		"sylve_url":        "https://192.0.2.1:8181",
+		"sylve_token":      "tok",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "sw",
+		"ssh_username":     "root",
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionPrivateKeyFile != rsaKey {
+		t.Fatalf("SSHBastionPrivateKeyFile = %q, want %q (skip unusable id_ed25519 path)", c.Config.SSHBastionPrivateKeyFile, rsaKey)
+	}
+}
+
+func TestConfig_SSHProxy_ProxyJumpNoneDoesNotBlockPrepare(t *testing.T) {
+	t.Setenv("SYLVE_SSH_PROXY_KEY", "")
+	tmp := t.TempDir()
+	sshDir := filepath.Join(tmp, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := "Host 192.0.2.1\n  User jumpuser\n  IdentityFile ~/.ssh/id_ed25519\n  ProxyJump none\n"
+	if err := os.WriteFile(filepath.Join(sshDir, "config"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+	keyPath := filepath.Join(sshDir, "id_ed25519")
+	generateTestPrivateKey(t, keyPath)
+	t.Setenv("HOME", tmp)
+
+	raw := map[string]interface{}{
+		"sylve_url":        "https://192.0.2.1:8181",
+		"sylve_token":      "tok",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "sw",
+		"ssh_username":     "root",
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionUsername != "jumpuser" {
+		t.Fatalf("SSHBastionUsername = %q", c.Config.SSHBastionUsername)
+	}
+}
+
+func TestConfig_VNCHost_FallbackWhenSylveURLDoesNotParse(t *testing.T) {
+	t.Setenv("SYLVE_HOST", "")
+	c, err := prepare(map[string]interface{}{
+		"sylve_token":      "tok",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "sw",
+		"ssh_username":     "root",
+		"sylve_url":        "://invalid-url",
+	})
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.VNCHost != "127.0.0.1" {
+		t.Fatalf("VNCHost = %q, want 127.0.0.1 when Sylve URL cannot be parsed", c.VNCHost)
+	}
+}
+
+func TestSshConfigForHost_ProxyJump(t *testing.T) {
+	cfg := `
+Host sylve.example.com
+  User palltimo
+  IdentityFile ~/.ssh/id_ed25519
+  ProxyJump jumpbox.example.com
+`
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, ".ssh"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".ssh", "config"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	user, keyFile, proxyJump := sshConfigForHost("sylve.example.com")
+	if user != "palltimo" {
+		t.Errorf("user = %q, want %q", user, "palltimo")
+	}
+	wantKey := filepath.Join(tmp, ".ssh", "id_ed25519")
+	if keyFile != wantKey {
+		t.Errorf("identityFile = %q, want %q", keyFile, wantKey)
+	}
+	if proxyJump != "jumpbox.example.com" {
+		t.Errorf("proxyJump = %q, want %q", proxyJump, "jumpbox.example.com")
+	}
+}
+
+func TestConfig_SSHProxy_UsesSSHConfigIdentityFile(t *testing.T) {
+	// When ~/.ssh/config has an IdentityFile for the Sylve host, use it.
+	t.Setenv("SYLVE_SSH_PROXY_KEY", "")
+	t.Setenv("SYLVE_USER", "")
+	t.Setenv("SYLVE_PASSWORD", "")
+
+	tmp := t.TempDir()
+	sshDir := filepath.Join(tmp, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	keyPath := filepath.Join(sshDir, "id_ed25519")
+	generateTestPrivateKey(t, keyPath)
+
+	cfg := "Host 192.0.2.1\n  User sshconfiguser\n  IdentityFile ~/.ssh/id_ed25519\n"
+	if err := os.WriteFile(filepath.Join(sshDir, "config"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+
+	raw := map[string]interface{}{
+		"sylve_url":        "https://192.0.2.1:8181",
+		"sylve_token":      "tok",
+		"iso_download_url": "https://example.com/os.iso",
+		"switch_name":      "packer-switch",
+		"ssh_username":     "root",
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionHost != "192.0.2.1" {
+		t.Errorf("SSHBastionHost = %q, want %q", c.Config.SSHBastionHost, "192.0.2.1")
+	}
+	if c.Config.SSHBastionUsername != "sshconfiguser" {
+		t.Errorf("SSHBastionUsername = %q, want %q", c.Config.SSHBastionUsername, "sshconfiguser")
+	}
+	if c.Config.SSHBastionPrivateKeyFile != keyPath {
+		t.Errorf("SSHBastionPrivateKeyFile = %q, want %q", c.Config.SSHBastionPrivateKeyFile, keyPath)
+	}
+	if c.Config.SSHBastionAgentAuth {
+		t.Error("SSHBastionAgentAuth = true, want false (key file from SSH config should be used)")
 	}
 }

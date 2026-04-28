@@ -216,6 +216,62 @@ func TestSelectVNCPort_NoFreePortInRange(t *testing.T) {
 	}
 }
 
+// TestSelectVNCPort_SkipsTimeWaitPort verifies that selectVNCPort skips a port
+// when the exclusive bind check fails (simulating a TIME_WAIT socket that
+// Go's SO_REUSEADDR-based net.Listen would silently accept but bhyve would not).
+func TestSelectVNCPort_SkipsTimeWaitPort(t *testing.T) {
+	var pLow, pHigh int
+	found := false
+	for base := 42000; base < 42200; base++ {
+		l1, err1 := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", base))
+		l2, err2 := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", base+1))
+		if err1 == nil && err2 == nil {
+			pLow, pHigh = base, base+1
+			_ = l1.Close()
+			_ = l2.Close()
+			found = true
+			break
+		}
+		if l1 != nil {
+			_ = l1.Close()
+		}
+		if l2 != nil {
+			_ = l2.Close()
+		}
+	}
+	if !found {
+		t.Skip("could not find two consecutive free ports in scan range")
+	}
+
+	// Simulate a TIME_WAIT socket on pLow: the exclusive listen check fails for
+	// pLow but the regular net.Listen (with SO_REUSEADDR) would succeed.
+	oldExclusive := exclusiveListenFn
+	exclusiveListenFn = func(addr string) error {
+		if addr == fmt.Sprintf("127.0.0.1:%d", pLow) {
+			return fmt.Errorf("simulated TIME_WAIT on %s", addr)
+		}
+		return oldExclusive(addr)
+	}
+	t.Cleanup(func() { exclusiveListenFn = oldExclusive })
+
+	api, srv := testHTTPServerListVMs(t, nil)
+	defer srv.Close()
+
+	step := &StepCreateVM{Config: &Config{
+		VNCPortMin: pLow,
+		VNCPortMax: pHigh,
+		VNCHost:    "127.0.0.1",
+	}}
+	state := new(multistep.BasicStateBag)
+	if err := step.selectVNCPort(api, state); err != nil {
+		t.Fatalf("selectVNCPort: %v", err)
+	}
+	if step.Config.VNCPort != pHigh {
+		t.Fatalf("VNCPort = %d, want %d (should skip TIME_WAIT port %d)", step.Config.VNCPort, pHigh, pLow)
+	}
+	_ = state.Get("vnc_view_listener").(net.Listener).Close()
+}
+
 func TestStepCreateVM_Cleanup_SkipsWhenStepVMRIDZero(t *testing.T) {
 	var del int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

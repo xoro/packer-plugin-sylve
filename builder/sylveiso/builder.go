@@ -15,8 +15,7 @@
 //  4. Start the VM and send VNC boot commands through Sylve's WebSocket proxy.
 //  5. Wait for the installer to reboot the guest, disable the ISO storage, and
 //     restart the VM so it boots into the freshly installed OS.
-//  6. Discover the VM's IP address via the Sylve DHCP lease API or the local
-//     system ARP cache.
+//  6. Discover the VM's IP address via the Sylve DHCP lease API.
 //  7. Connect via SSH and run Packer provisioners.
 //  8. Send the shutdown_command and wait for the domain to halt.
 //  9. Optionally delete the VM from Sylve after success (destroy = true; default

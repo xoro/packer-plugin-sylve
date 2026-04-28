@@ -9,9 +9,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
 )
 
@@ -50,6 +52,86 @@ func TestStepVNCBootCommand_Run_ContextCancelDuringDialRetry(t *testing.T) {
 		time.Sleep(400 * time.Millisecond)
 		cancel()
 	}()
+
+	if got := step.Run(ctx, state); got != multistep.ActionHalt {
+		t.Fatalf("Run() = %v, want ActionHalt", got)
+	}
+	err, ok := state.Get("error").(error)
+	if !ok || !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", state.Get("error"))
+	}
+}
+
+// TestStepVNCBootCommand_Run_ContextCancelledBeforeSecondBootCommand exercises
+// the per-command select on ctx.Done() after the first boot_command completes.
+func TestStepVNCBootCommand_Run_ContextCancelledBeforeSecondBootCommand(t *testing.T) {
+	rfbLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rfbLn.Close()
+	rfbAddr := rfbLn.Addr().String()
+
+	go func() {
+		for {
+			c, err := rfbLn.Accept()
+			if err != nil {
+				return
+			}
+			go func(conn net.Conn) {
+				defer conn.Close()
+				_ = serveMinimalRFB(conn)
+			}(c)
+		}
+	}()
+
+	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/vnc/") {
+			http.NotFound(w, r)
+			return
+		}
+		wsConn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		tcpConn, err := net.Dial("tcp", rfbAddr)
+		if err != nil {
+			_ = wsConn.Close()
+			return
+		}
+		go bridgeWebSocketTCP(wsConn, tcpConn)
+	}))
+	defer srv.Close()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(15 * time.Millisecond)
+		cancel()
+	}()
+
+	cfg := &Config{
+		SylveURL:        srv.URL,
+		SylveToken:      "test-token",
+		VNCPort:         5900,
+		VNCHost:         "127.0.0.1",
+		TLSSkipVerify:   true,
+		BootWait:        "1ns",
+		BootCommand:     []string{"<wait10ms>", "<wait500ms>"},
+		BootKeyInterval: 1 * time.Millisecond,
+	}
+
+	step := &StepVNCBootCommand{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+	state.Put("vnc_view_listener", ln)
 
 	if got := step.Run(ctx, state); got != multistep.ActionHalt {
 		t.Fatalf("Run() = %v, want ActionHalt", got)

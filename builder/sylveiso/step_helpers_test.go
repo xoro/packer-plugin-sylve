@@ -44,40 +44,6 @@ func TestBoolPtr_ReturnsDistinctPointers(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// padMAC
-// ---------------------------------------------------------------------------
-
-func TestPadMAC_AlreadyPadded(t *testing.T) {
-	in := "aa:bb:cc:dd:ee:ff"
-	if got := padMAC(in); got != in {
-		t.Errorf("padMAC(%q) = %q, want unchanged %q", in, got, in)
-	}
-}
-
-func TestPadMAC_ShortOctets(t *testing.T) {
-	in := "22:16:9:2:65:69"
-	want := "22:16:09:02:65:69"
-	if got := padMAC(in); got != want {
-		t.Errorf("padMAC(%q) = %q, want %q", in, got, want)
-	}
-}
-
-func TestPadMAC_AllShortOctets(t *testing.T) {
-	in := "1:2:3:4:5:6"
-	want := "01:02:03:04:05:06"
-	if got := padMAC(in); got != want {
-		t.Errorf("padMAC(%q) = %q, want %q", in, got, want)
-	}
-}
-
-func TestPadMAC_WrongSegmentCount(t *testing.T) {
-	in := "aa:bb:cc"
-	if got := padMAC(in); got != in {
-		t.Errorf("padMAC(%q) with wrong segment count = %q, want original %q", in, got, in)
-	}
-}
-
-// ---------------------------------------------------------------------------
 // isRemoteHost
 // ---------------------------------------------------------------------------
 
