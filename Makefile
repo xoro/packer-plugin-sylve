@@ -4,7 +4,7 @@ BINARY=packer-plugin-${NAME}
 COUNT ?= 1
 TEST=$(shell go list ./...)
 HASHICORP_PACKER_PLUGIN_SDK_VERSION=$(shell go list -m github.com/hashicorp/packer-plugin-sdk | cut -d " " -f2)
-PLUGIN_FQN=$(shell grep '^module ' go.mod | sed 's/^module //')
+PLUGIN_FQN=github.com/xoro/packer-plugin-sylve
 VERSION=$(shell sed -n 's/^[[:space:]]*Version = "\([^"]*\)".*/\1/p' version/version.go)
 
 # PLUGIN_INSTALL_FQN is the address passed to "packer plugins install" and used in
