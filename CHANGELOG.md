@@ -3,6 +3,20 @@
 
 # Changelog
 
+## [0.1.4] - 2026-04-28
+
+### 🚀 Features
+
+- _(wip)_ Fix VM running-state detection and add auto SSH bastion
+
+### 🐛 Bug Fixes
+
+- _(build)_ Hardcode PLUGIN_FQN to fix bmake compatibility on FreeBSD
+
+### 📚 Documentation
+
+- Document GitHub Actions to GoReleaser pipeline in create_release.sh
+
 ## [0.1.3] - 2026-04-06
 
 ### ⚙️ Miscellaneous Tasks
