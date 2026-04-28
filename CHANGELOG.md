@@ -3,6 +3,22 @@
 
 # Changelog
 
+## [0.1.5] - 2026-04-28
+
+### Features
+
+- _(build)_ Add freebsd/arm64, linux/amd64, linux/arm64, openbsd/amd64, openbsd/arm64 targets
+
+### Bug Fixes
+
+- _(release)_ Enable git-cliff changelog in goreleaser
+- _(config)_ Remove emojis from cliff.toml and CHANGELOG.md
+
+### Refactor
+
+- _(scripts)_ Rename run_all.sh to run_all_quality_checks.sh
+- _(scripts)_ Make push default in create_release.sh
+
 ## [0.1.4] - 2026-04-28
 
 ### Features
