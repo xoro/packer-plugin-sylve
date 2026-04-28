@@ -34,15 +34,15 @@
 # 6. Commit, tag, and optionally push (push triggers CI + GoReleaser + GitHub Release)
 #
 # Usage:
-#   ./bin/create_release.sh [--dry-run] [--push] [--skip-checks] [--branch <name>]
+#   ./bin/create_release.sh [--dry-run] [--no-push] [--skip-checks] [--branch <name>]
 #
 #   --dry-run      Print actions only; no file or git changes
-#   --push         Push branch and tag to origin (starts Actions -> GoReleaser -> GitHub Release)
+#   --no-push      Skip git push (commit and tag locally only; no GitHub Release)
 #   --skip-checks  Skip ./bin/format_code.sh, go test, ./bin/run_linter_checks.sh
 #   --branch NAME  Require current branch to be NAME (default: main)
 #
 # Typical release (from repo root, on main, clean tree):
-#   ./bin/create_release.sh --push
+#   ./bin/create_release.sh
 #
 # Exit Codes:
 # 0 - Success (or dry-run completed)
@@ -60,7 +60,7 @@ repo_root="$(cd "$(dirname "${0}")/.." && pwd)"
 cd "${repo_root}" || exit 1
 
 dry_run=0
-do_push=0
+do_push=1
 skip_checks=0
 required_branch="main"
 
@@ -70,8 +70,8 @@ while [ "$#" -gt 0 ]; do
         dry_run=1
         shift
         ;;
-    --push)
-        do_push=1
+    --no-push)
+        do_push=0
         shift
         ;;
     --skip-checks)
@@ -87,9 +87,10 @@ while [ "$#" -gt 0 ]; do
         shift 2
         ;;
     --help | -h)
-        printf "Usage: %s [--dry-run] [--push] [--skip-checks] [--branch <name>]\n" "${script_name}"
-        printf "  Bump PATCH, changelog, chore(release) commit, tag vX.Y.Z.\n"
-        printf "  With --push: git push -> GitHub Actions -> GoReleaser -> GitHub Release (see %s header).\n" "${script_name}"
+        printf "Usage: %s [--dry-run] [--no-push] [--skip-checks] [--branch <name>]\n" "${script_name}"
+        printf "  Bump PATCH, changelog, chore(release) commit, tag vX.Y.Z, and push (default).\n"
+        printf "  Push triggers GitHub Actions -> GoReleaser -> GitHub Release (see %s header).\n" "${script_name}"
+        printf "  Use --no-push to commit and tag locally without pushing.\n"
         printf "  Tags v0.1.0 and v0.1.1 skip GoReleaser per .github/workflows/release.yml.\n"
         exit 0
         ;;
@@ -148,7 +149,7 @@ if [ "${dry_run}" -eq 1 ]; then
         printf "%b %b INFO:  dry-run: would push origin %s and tag v%s\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${required_branch}" "${new_version}"
         printf "%b %b INFO:  dry-run: push would trigger GitHub Actions -> GoReleaser -> GitHub Release (see script header).\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
     else
-        printf "%b %b INFO:  dry-run: pass --push to push branch and tag (then Actions -> GoReleaser -> GitHub Release)\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+        printf "%b %b INFO:  dry-run: --no-push set; would skip git push (local commit and tag only)\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
     fi
     exit 0
 fi
