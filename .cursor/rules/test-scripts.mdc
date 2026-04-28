@@ -24,7 +24,7 @@ All quality scripts live in `bin/`:
 | `bin/run_format_checks.sh`                | Verify formatting is correct (read-only)                           |
 | `bin/run_linter_checks.sh`                | Run all linters (staticcheck, shellcheck, etc.)                    |
 | `bin/run_unit_tests.sh`                   | Run Go unit tests with coverage                                    |
-| `bin/run_all.sh`                          | Full pipeline: format check, lint, tests, leaks, security          |
+| `bin/run_all_quality_checks.sh`           | Full pipeline: format check, lint, tests, leaks, security          |
 | `bin/run_leak_checks.sh`                  | Run gitleaks secret scanning                                       |
 | `bin/run_security_scanners.sh`            | Run security vulnerability scanners                                |
 | `bin/create_sbom.sh`                      | Generate Software Bill of Materials                                |

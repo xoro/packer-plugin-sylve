@@ -24,7 +24,7 @@
 # bin/run_example.sh (live Sylve), bin/update_go_mods.sh (dependency maintenance).
 #
 # Usage:
-#   ./bin/run_all.sh
+#   ./bin/run_all_quality_checks.sh
 #
 # Dependencies:
 #   - Same as each invoked script (treefmt, go, gitleaks, syft, etc.)

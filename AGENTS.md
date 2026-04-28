@@ -129,7 +129,7 @@ go test ./...                 # Run unit tests
 For a full local gate (format check, lint, unit tests with coverage, gitleaks, security scanners), run:
 
 ```bash
-./bin/run_all.sh
+./bin/run_all_quality_checks.sh
 ```
 
 For **manual** GitHub release bundles (same layout as GoReleaser for v0.1.x tags where Actions skips GoReleaser), see
