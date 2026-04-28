@@ -34,7 +34,19 @@ jobs:
           go-version-file: go.mod
 
       - name: Install git-cliff
-        uses: kenji-miyake/setup-git-cliff@v2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download \
+            --repo orhun/git-cliff \
+            --pattern "git-cliff-x86_64-unknown-linux-musl.tar.gz" \
+            --dir /tmp
+          tar --extract --gzip \
+            --file /tmp/git-cliff-x86_64-unknown-linux-musl.tar.gz \
+            --directory /tmp
+          sudo install --mode=755 \
+            "$(find /tmp -maxdepth 2 -name git-cliff -type f)" \
+            /usr/local/bin/git-cliff
 
       - name: Install syft
         uses: anchore/sbom-action/download-syft@v0
