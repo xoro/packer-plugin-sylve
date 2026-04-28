@@ -33,6 +33,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install git-cliff
+        uses: kenji-miyake/setup-git-cliff@v2
+
       - name: Install syft
         uses: anchore/sbom-action/download-syft@v0
 
