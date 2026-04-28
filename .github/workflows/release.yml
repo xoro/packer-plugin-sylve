@@ -37,13 +37,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download \
-            --repo orhun/git-cliff \
-            --pattern "git-cliff-x86_64-unknown-linux-musl.tar.gz" \
-            --dir /tmp
-          tar --extract --gzip \
-            --file /tmp/git-cliff-x86_64-unknown-linux-musl.tar.gz \
-            --directory /tmp
+          CLIFF_VERSION=$(gh api repos/orhun/git-cliff/releases/latest --jq '.tag_name')
+          curl --silent --show-error --location \
+            "https://github.com/orhun/git-cliff/releases/download/${CLIFF_VERSION}/git-cliff-${CLIFF_VERSION#v}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar --extract --gzip --directory /tmp
           sudo install --mode=755 \
             "$(find /tmp -maxdepth 2 -name git-cliff -type f)" \
             /usr/local/bin/git-cliff
