@@ -47,7 +47,13 @@ jobs:
           git-cliff --version
 
       - name: Generate changelog
-        run: git-cliff --latest --output /tmp/release-notes.md
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          PREV_TAG=$(git describe --abbrev=0 --tags "${TAG}^")
+          echo "Generating changelog from ${PREV_TAG} to ${TAG}"
+          git-cliff "${PREV_TAG}..${TAG}" --output /tmp/release-notes.md
+          echo "Changelog content:"
+          cat /tmp/release-notes.md
 
       - name: Install syft
         uses: anchore/sbom-action/download-syft@v0
