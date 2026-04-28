@@ -4,8 +4,8 @@
 # GoReleaser configuration for packer-plugin-sylve (aligned with
 # https://github.com/hashicorp/packer-plugin-scaffolding ).
 #
-# Builds only darwin/arm64 and freebsd/amd64 for now; expand goos/goarch and
-# trim `ignore` when you add platforms.
+# Builds: darwin/arm64, freebsd/amd64, freebsd/arm64, linux/amd64, linux/arm64,
+# openbsd/amd64, openbsd/arm64.
 #
 # Tag releases as vX.Y.Z (HashiCorp style). {{ .Version }} is SemVer without "v".
 #
@@ -40,14 +40,14 @@ builds:
     goos:
       - darwin
       - freebsd
+      - linux
+      - openbsd
     goarch:
       - amd64
       - arm64
     ignore:
       - goos: darwin
         goarch: amd64
-      - goos: freebsd
-        goarch: arm64
     binary: "{{ .ProjectName }}_v{{ .Version }}_{{ .Env.API_VERSION }}_{{ .Os }}_{{ .Arch }}"
 
 archives:
