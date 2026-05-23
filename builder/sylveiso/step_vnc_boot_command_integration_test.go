@@ -597,6 +597,75 @@ func TestStepVNCBootCommand_ContextCancelDuringBootWait(t *testing.T) {
 	}
 }
 
+// TestStepVNCBootCommand_FallbackListenError covers the branch where no
+// pre-bound listener exists but the fallback bind fails cleanly.
+func TestStepVNCBootCommand_FallbackListenError(t *testing.T) {
+	rfbLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rfbLn.Close()
+	rfbAddr := rfbLn.Addr().String()
+
+	go func() {
+		c, err := rfbLn.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		_ = serveMinimalRFB(c)
+	}()
+
+	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/vnc/") {
+			http.NotFound(w, r)
+			return
+		}
+		wsConn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		tcpConn, err := net.Dial("tcp", rfbAddr)
+		if err != nil {
+			_ = wsConn.Close()
+			return
+		}
+		go bridgeWebSocketTCP(wsConn, tcpConn)
+	}))
+	defer srv.Close()
+
+	orig := vncFallbackListenFn
+	vncFallbackListenFn = func(network, addr string) (net.Listener, error) {
+		return nil, errors.New("simulated bind failure")
+	}
+	t.Cleanup(func() { vncFallbackListenFn = orig })
+
+	cfg := &Config{
+		SylveURL:        srv.URL,
+		SylveToken:      "test-token",
+		VNCPort:         5900,
+		VNCHost:         "127.0.0.1",
+		TLSSkipVerify:   true,
+		BootWait:        "50ms",
+		BootCommand:     []string{"<wait1ms>"},
+		BootKeyInterval: 1 * time.Millisecond,
+	}
+
+	step := &StepVNCBootCommand{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+	state.Put("http_ip", "127.0.0.1")
+	state.Put("http_port", 8099)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	if action := step.Run(ctx, state); action != multistep.ActionContinue {
+		t.Fatalf("Run = %v error=%v", action, state.Get("error"))
+	}
+}
+
 // bridgeWebSocketTCP copies bytes between a gorilla WebSocket and a TCP conn
 // (same layout as Sylve's proxy: one binary message per VNC write chunk).
 func bridgeWebSocketTCP(ws *websocket.Conn, tcp net.Conn) {

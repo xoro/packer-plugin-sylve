@@ -11,4 +11,4 @@ useDefault = true
 
 [allowlist]
 description = "Packer debug log path (gitignored; may exist locally after bin/run_example.sh)"
-paths = ['''(?:^|/)packer\.log$''']
+paths = ['''(?:^|/)packer(?:-[^/]+)?\.log$''']

@@ -472,6 +472,12 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 	return nil, nil, nil
 }
 
+// interfaceAddrsFn and userHomeDirFn are overridable in tests.
+var (
+	interfaceAddrsFn = net.InterfaceAddrs
+	userHomeDirFn    = os.UserHomeDir
+)
+
 // sylveHostIsLocal reports whether hostname resolves to an IP address that is
 // assigned to a local network interface. When true, Packer is running on the
 // same machine as Sylve and can reach the VM subnet directly — no SSH bastion
@@ -483,7 +489,7 @@ func sylveHostIsLocal(hostname string) bool {
 	}
 
 	// Collect all local interface addresses.
-	addrs, err := net.InterfaceAddrs()
+	addrs, err := interfaceAddrsFn()
 	if err != nil {
 		return false
 	}
@@ -518,7 +524,7 @@ func sylveHostIsLocal(hostname string) bool {
 // The ProxyJump value is returned for diagnostic purposes only — the plugin's
 // built-in bastion supports a single hop and cannot honour ProxyJump chains.
 func sshConfigForHost(hostname string) (user, identityFile, proxyJump string) {
-	home, err := os.UserHomeDir()
+	home, err := userHomeDirFn()
 	if err != nil {
 		return "", "", ""
 	}

@@ -14,10 +14,13 @@ import (
 // Retry limits for transient Sylve API failures (listener restart, brief network
 // loss). Each logical do() may perform up to maxHTTPAttempts HTTP round-trips.
 const (
-	maxHTTPAttempts = 5
-	retryBaseDelay  = 200 * time.Millisecond
-	retryMaxDelay   = 4 * time.Second
+	retryBaseDelay = 200 * time.Millisecond
+	retryMaxDelay  = 4 * time.Second
 )
+
+// maxHTTPAttempts is ordinarily 5. Tests may briefly set it to zero to execute
+// the post-loop fallback in Client.do without sending HTTP requests.
+var maxHTTPAttempts = 5
 
 // isRetriableTransportError reports whether err is likely temporary (worth retrying).
 func isRetriableTransportError(err error) bool {

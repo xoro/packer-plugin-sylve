@@ -511,3 +511,63 @@ func TestListVMsSimple_Error(t *testing.T) {
 		t.Fatal("expected error for 500 response, got nil")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// FindVMByName
+// ---------------------------------------------------------------------------
+
+func TestFindVMByName_Found(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.RequestURI() == "/api/vm/simple":
+			okJSON(w, APIResponse[[]SimpleVM]{Data: []SimpleVM{
+				{RID: 3, ID: 10, Name: "my-vm"},
+				{RID: 4, ID: 11, Name: "other-vm"},
+			}})
+		case r.Method == http.MethodGet && r.URL.RequestURI() == "/api/vm/3?type=rid":
+			okJSON(w, APIResponse[VM]{Data: VM{ID: 10, RID: 3, Name: "my-vm",
+				Storages: []VMStorage{{ID: 1, Type: VMStorageTypeZVol, Name: "disk0"}},
+			}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "tok", false)
+	vm, err := c.FindVMByName("my-vm")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if vm.RID != 3 || vm.Name != "my-vm" {
+		t.Errorf("unexpected VM: %+v", vm)
+	}
+}
+
+func TestFindVMByName_NotFound(t *testing.T) {
+	c, srv := serveVM(t, "/api/vm/simple", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		okJSON(w, APIResponse[[]SimpleVM]{Data: []SimpleVM{
+			{RID: 1, Name: "other-vm"},
+		}})
+	})
+	defer srv.Close()
+
+	_, err := c.FindVMByName("missing-vm")
+	if err == nil {
+		t.Fatal("expected error for missing VM, got nil")
+	}
+	if !strings.Contains(err.Error(), "VM not found") {
+		t.Errorf("error = %q, want to contain \"VM not found\"", err.Error())
+	}
+}
+
+func TestFindVMByName_ListError(t *testing.T) {
+	c, srv := serveVM(t, "/api/vm/simple", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	})
+	defer srv.Close()
+
+	if _, err := c.FindVMByName("any-vm"); err == nil {
+		t.Fatal("expected error when list fails, got nil")
+	}
+}

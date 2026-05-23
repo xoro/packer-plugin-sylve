@@ -63,14 +63,35 @@ func (n *VMNetwork) MACAddress() string {
 	return ""
 }
 
+// VMStorageTypeZVol and its siblings are the values the Sylve API returns for
+// VMStorage.Type. Use these constants rather than bare strings when branching
+// on storage type so refactoring catches all call sites.
+const (
+	VMStorageTypeRaw        = "raw"
+	VMStorageTypeZVol       = "zvol"
+	VMStorageTypeDiskImage  = "image"
+	VMStorageTypeFilesystem = "filesystem"
+)
+
+// VMStorageDataset is the ZFS dataset record embedded in a VMStorage entry.
+// It is populated by Sylve for zvol and filesystem storage types.
+type VMStorageDataset struct {
+	GUID string `json:"guid"`
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+	Pool string `json:"pool"`
+}
+
 // VMStorage is a storage device attached to a VM.
 type VMStorage struct {
-	ID        uint   `json:"id"`
-	Type      string `json:"type"`
-	Name      string `json:"name"`
-	Emulation string `json:"emulation"`
-	BootOrder int    `json:"bootOrder"`
-	VMID      uint   `json:"vmId"`
+	ID        uint              `json:"id"`
+	Type      string            `json:"type"`
+	Name      string            `json:"name"`
+	Pool      string            `json:"pool"`
+	Emulation string            `json:"emulation"`
+	BootOrder int               `json:"bootOrder"`
+	VMID      uint              `json:"vmId"`
+	Dataset   *VMStorageDataset `json:"dataset"`
 }
 
 // SimpleVM is the lightweight object returned by GET /api/vm/simple.
@@ -149,6 +170,22 @@ func (c *Client) ListVMsSimple() ([]SimpleVM, error) {
 		return nil, fmt.Errorf("list VMs simple: %w", err)
 	}
 	return resp.Data, nil
+}
+
+// FindVMByName iterates the simple VM list and returns the full VM for the
+// first entry whose Name matches name (case-sensitive). Returns an error
+// wrapping the literal "VM not found" message when no match is found.
+func (c *Client) FindVMByName(name string) (*VM, error) {
+	vms, err := c.ListVMsSimple()
+	if err != nil {
+		return nil, fmt.Errorf("find VM %q: %w", name, err)
+	}
+	for _, v := range vms {
+		if v.Name == name {
+			return c.GetVMByRID(v.RID)
+		}
+	}
+	return nil, fmt.Errorf("find VM %q: VM not found", name)
 }
 
 // GetSimpleVMByRID calls GET /api/vm/simple/:rid?type=rid and returns a

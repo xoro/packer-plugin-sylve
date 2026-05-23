@@ -46,6 +46,13 @@ var isoBuildStepsHook func(*Builder) []multistep.Step
 // is temporarily unreachable. Overridable in tests.
 var sylveLoginRetryInterval = 5 * time.Second
 
+// isoEnsureAuthLoginFn calls Sylve POST /auth/login via c (see Builder.ensureAuth).
+// Tests may substitute a custom implementation to exercise the outer retry loop
+// without relying on nested HTTP retries within a single Login call.
+var isoEnsureAuthLoginFn = func(c *client.Client, username, password, authType string) (string, error) {
+	return c.Login(username, password, authType)
+}
+
 // Builder implements packersdk.Builder for source "sylve-iso".
 type Builder struct {
 	config Config
@@ -88,7 +95,7 @@ func (b *Builder) ensureAuth(ui packersdk.Ui) (cleanup func(), err error) {
 
 	for {
 		c := client.New(b.config.SylveURL, "", b.config.TLSSkipVerify)
-		token, err := c.Login(b.config.SylveUser, b.config.SylvePassword, b.config.SylveAuthType)
+		token, err := isoEnsureAuthLoginFn(c, b.config.SylveUser, b.config.SylvePassword, b.config.SylveAuthType)
 		if err == nil {
 			b.config.SylveToken = token
 			ui.Say(fmt.Sprintf("Logged in to Sylve as %q", b.config.SylveUser))
@@ -113,6 +120,15 @@ func (b *Builder) ensureAuth(ui packersdk.Ui) (cleanup func(), err error) {
 			time.Sleep(sleep)
 		}
 	}
+}
+
+// isoBuildStepsForRun returns injected steps during tests when isoBuildStepsHook
+// is non-nil; otherwise production defaultISOSteps().
+func (b *Builder) isoBuildStepsForRun() []multistep.Step {
+	if isoBuildStepsHook != nil && testing.Testing() {
+		return isoBuildStepsHook(b)
+	}
+	return b.defaultISOSteps()
 }
 
 // Run executes the full ISO build lifecycle: authentication, pre-flight checks,
@@ -142,12 +158,7 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 	state.Put("ui", ui)
 	state.Put("config", &b.config)
 
-	var steps []multistep.Step
-	if isoBuildStepsHook != nil && testing.Testing() {
-		steps = isoBuildStepsHook(b)
-	} else {
-		steps = b.defaultISOSteps()
-	}
+	steps := b.isoBuildStepsForRun()
 
 	b.runner = &multistep.BasicRunner{Steps: steps}
 	b.runner.Run(ctx, state)

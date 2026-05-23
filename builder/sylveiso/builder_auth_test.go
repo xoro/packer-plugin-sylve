@@ -5,6 +5,7 @@ package sylveiso
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -172,22 +173,25 @@ func TestEnsureAuth_LogoutError(t *testing.T) {
 	}
 }
 
-// TestEnsureAuth_SucceedsAfter503Burst verifies the outer login loop: the first
-// Login exhausts HTTP retries on 503; the second attempt succeeds. Uses a zero
-// sylveLoginRetryInterval so the sleep path uses the sub-millisecond fallback.
+// TestEnsureAuth_SucceedsAfter503Burst verifies the outer ensureAuth retry loop
+// plus the microsecond sleep shim when retry interval is zero.
 func TestEnsureAuth_SucceedsAfter503Burst(t *testing.T) {
-	orig := sylveLoginRetryInterval
-	sylveLoginRetryInterval = 0
-	t.Cleanup(func() { sylveLoginRetryInterval = orig })
+	loginTransportErr := errors.New(
+		`sylve login as "alice": execute request POST /auth/login: dial tcp :0: connect: connection refused`,
+	)
 
-	var n int32
+	origLoginFn := isoEnsureAuthLoginFn
+	origRetry := sylveLoginRetryInterval
+	sylveLoginRetryInterval = 0
+	t.Cleanup(func() {
+		isoEnsureAuthLoginFn = origLoginFn
+		sylveLoginRetryInterval = origRetry
+	})
+
+	var srvCalls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/login" && r.Method == http.MethodPost {
-			c := atomic.AddInt32(&n, 1)
-			if c <= 5 {
-				http.Error(w, "bad", http.StatusServiceUnavailable)
-				return
-			}
+			atomic.AddInt32(&srvCalls, 1)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.LoginResponse]{
 				Status: "ok",
@@ -198,6 +202,15 @@ func TestEnsureAuth_SucceedsAfter503Burst(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
+
+	var loginAttempts int
+	isoEnsureAuthLoginFn = func(c *client.Client, u, pw, auth string) (string, error) {
+		loginAttempts++
+		if loginAttempts == 1 {
+			return "", loginTransportErr
+		}
+		return origLoginFn(c, u, pw, auth)
+	}
 
 	b := &Builder{config: Config{
 		SylveURL:      srv.URL,
@@ -219,25 +232,34 @@ func TestEnsureAuth_SucceedsAfter503Burst(t *testing.T) {
 		t.Fatalf("token = %q", b.config.SylveToken)
 	}
 	cleanup()
-	if n != 6 {
-		t.Fatalf("login HTTP requests = %d, want 6", n)
+	if loginAttempts != 2 {
+		t.Fatalf("outer Login attempts=%d want 2", loginAttempts)
+	}
+	if srvCalls != 1 {
+		t.Fatalf("HTTP logins=%d want 1", srvCalls)
 	}
 }
 
-// TestEnsureAuth_TimesOutWaitingForAPI covers the deadline branch after a full
-// Login fails with retriable errors (inner HTTP retries add a few seconds).
+// TestEnsureAuth_TimesOutWaitingForAPI covers the deadline branch when login
+// failures are retriable at the ensureAuth layer only.
 func TestEnsureAuth_TimesOutWaitingForAPI(t *testing.T) {
-	orig := sylveLoginRetryInterval
-	sylveLoginRetryInterval = time.Millisecond
-	t.Cleanup(func() { sylveLoginRetryInterval = orig })
+	loginTransportErr := errors.New(
+		`sylve login as "alice": execute request POST /auth/login: dial tcp :0: connect: connection refused`,
+	)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/auth/login" && r.Method == http.MethodPost {
-			http.Error(w, "bad", http.StatusServiceUnavailable)
-			return
-		}
-		http.NotFound(w, r)
-	}))
+	origLoginFn := isoEnsureAuthLoginFn
+	origRetry := sylveLoginRetryInterval
+	sylveLoginRetryInterval = time.Millisecond
+	t.Cleanup(func() {
+		isoEnsureAuthLoginFn = origLoginFn
+		sylveLoginRetryInterval = origRetry
+	})
+
+	isoEnsureAuthLoginFn = func(*client.Client, string, string, string) (string, error) {
+		return "", loginTransportErr
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(http.NotFound))
 	defer srv.Close()
 
 	b := &Builder{config: Config{
@@ -261,18 +283,22 @@ func TestEnsureAuth_TimesOutWaitingForAPI(t *testing.T) {
 // TestEnsureAuth_TruncatesRetrySleepToDeadline exercises ensureAuth when the
 // retry interval is larger than the time remaining until the login deadline.
 func TestEnsureAuth_TruncatesRetrySleepToDeadline(t *testing.T) {
-	orig := sylveLoginRetryInterval
-	sylveLoginRetryInterval = time.Minute
-	t.Cleanup(func() { sylveLoginRetryInterval = orig })
+	loginTransportErr := errors.New(
+		`sylve login as "alice": execute request POST /auth/login: dial tcp :0: connect: connection refused`,
+	)
 
-	var n int32
+	origLoginFn := isoEnsureAuthLoginFn
+	origRetry := sylveLoginRetryInterval
+	sylveLoginRetryInterval = time.Minute
+	t.Cleanup(func() {
+		isoEnsureAuthLoginFn = origLoginFn
+		sylveLoginRetryInterval = origRetry
+	})
+
+	var srvCalls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/login" && r.Method == http.MethodPost {
-			c := atomic.AddInt32(&n, 1)
-			if c == 1 {
-				http.Error(w, "bad", http.StatusServiceUnavailable)
-				return
-			}
+			atomic.AddInt32(&srvCalls, 1)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.LoginResponse]{
 				Status: "ok",
@@ -283,6 +309,15 @@ func TestEnsureAuth_TruncatesRetrySleepToDeadline(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
+
+	var loginAttempts int
+	isoEnsureAuthLoginFn = func(c *client.Client, u, pw, auth string) (string, error) {
+		loginAttempts++
+		if loginAttempts == 1 {
+			return "", loginTransportErr
+		}
+		return origLoginFn(c, u, pw, auth)
+	}
 
 	b := &Builder{config: Config{
 		SylveURL:      srv.URL,
@@ -299,10 +334,13 @@ func TestEnsureAuth_TruncatesRetrySleepToDeadline(t *testing.T) {
 		t.Fatalf("ensureAuth: %v", err)
 	}
 	cleanup()
-	if n != 2 {
-		t.Fatalf("login attempts = %d, want 2", n)
+	if loginAttempts != 2 {
+		t.Fatalf("outer Login attempts=%d want 2", loginAttempts)
 	}
-	if time.Since(start) > 3*time.Second {
+	if srvCalls != 1 {
+		t.Fatalf("HTTP logins=%d want 1", srvCalls)
+	}
+	if time.Since(start) > 4*time.Second {
 		t.Fatalf("expected truncated sleep (deadline ~1.5s), took %v", time.Since(start))
 	}
 }

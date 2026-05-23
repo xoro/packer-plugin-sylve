@@ -2,9 +2,9 @@
 modeline: |
   vim: set ft=pandoc:
 description: |
-  The sylve-vm builder starts from an existing Sylve VM snapshot, runs
-  provisioners over SSH, and produces an updated artifact. This builder is
-  planned for a future release.
+  The sylve-vm builder connects to an existing Sylve-registered VM, runs
+  provisioners over SSH or WinRM, and produces an updated artifact. Unlike
+  sylve-iso it does not create a new VM from an ISO image.
 page_title: Sylve VM - Builders
 nav_title: VM
 ---
@@ -17,12 +17,271 @@ nav_title: VM
 Type: `sylve-vm`
 Artifact BuilderId: `xoro.sylvevm`
 
-~> **Note**: The `sylve-vm` builder is planned for a future release and is
-not yet implemented. See the [`sylve-iso`][docs-sylve-iso] builder for the
-currently available ISO-based builder.
+The `sylve-vm` builder connects to an **existing** VM that is already
+registered in [Sylve][sylve], optionally snapshots its ZFS storage datasets,
+starts the VM, runs Packer provisioners via SSH or WinRM, shuts it down, and
+optionally destroys it. Unlike [`sylve-iso`][docs-sylve-iso], it does not
+boot from an ISO image or create a new VM.
 
-The `sylve-vm` builder will start from an existing Sylve VM snapshot instead
-of booting from an ISO image, run Packer provisioners over SSH, and produce
-an updated artifact.
+| Platform                | Artifact BuilderId |
+| ----------------------- | ------------------ |
+| Sylve / Bhyve (FreeBSD) | `xoro.sylvevm`     |
 
+## Basic Example (FreeBSD / SSH)
+
+~> **Note**: This example assumes a FreeBSD VM named `my-freebsd-vm` is
+already registered in Sylve.
+
+```hcl
+packer {
+  required_plugins {
+    sylve = {
+      version = ">= 0.1.0"
+      source  = "github.com/xoro/sylve"
+    }
+  }
+}
+
+source "sylve-vm" "freebsd" {
+  sylve_url   = "https://192.168.1.10:8181"
+  sylve_token = env("SYLVE_TOKEN")
+
+  vm_name = "my-freebsd-vm"
+
+  preserve_original = true
+
+  communicator     = "ssh"
+  ssh_username     = "root"
+  ssh_password     = "packer"
+  ssh_timeout      = "5m"
+  shutdown_command = "/sbin/shutdown -p now"
+}
+
+build {
+  sources = ["source.sylve-vm.freebsd"]
+
+  provisioner "shell" {
+    inline = ["pkg install -y curl"]
+  }
+}
+```
+
+## Basic Example (Windows / WinRM)
+
+~> **Note**: This example assumes a Windows VM named `my-windows-vm` is
+already registered in Sylve with WinRM configured. See
+[WinRM Auto-Tunnel](#winrm-auto-tunnel) below.
+
+```hcl
+packer {
+  required_plugins {
+    sylve = {
+      version = ">= 0.1.0"
+      source  = "github.com/xoro/sylve"
+    }
+  }
+}
+
+source "sylve-vm" "windows" {
+  sylve_url   = "https://192.168.1.10:8181"
+  sylve_token = env("SYLVE_TOKEN")
+
+  vm_name = "my-windows-vm"
+
+  preserve_original = true
+
+  communicator   = "winrm"
+  winrm_username = "packer"
+  winrm_password = env("WINRM_PASSWORD")
+  winrm_port     = 5985
+  winrm_timeout  = "3m"
+  boot_wait      = "1m"
+
+  # Graceful Windows shutdown ensures the rolled-back snapshot is in a
+  # clean-shutdown state so subsequent builds boot without dirty-boot recovery.
+  shutdown_command = "shutdown /s /f /t 5"
+}
+
+build {
+  sources = ["source.sylve-vm.windows"]
+
+  provisioner "powershell" {
+    inline = ["Write-Output \"Hello from Packer\""]
+  }
+}
+```
+
+## Configuration Reference
+
+### Authentication
+
+The builder requires either a pre-issued Bearer token **or** a username and
+password pair. Exactly one authentication method must be provided.
+
+**Required (one of)**:
+
+- `sylve_token` (string) - A pre-issued Bearer token for the Sylve API. Falls
+  back to the `SYLVE_TOKEN` environment variable. When supplied, `sylve_user`
+  and `sylve_password` are ignored.
+
+- `sylve_user` (string) - Sylve account username for login-based
+  authentication. Falls back to the `SYLVE_USER` environment variable.
+  Required when `sylve_token` is not set.
+
+- `sylve_password` (string) - Sylve account password for login-based
+  authentication. Falls back to the `SYLVE_PASSWORD` environment variable.
+  Required when `sylve_token` is not set.
+
+### Connection Configuration
+
+**Optional**:
+
+- `sylve_url` (string) - Base URL of the Sylve instance including scheme and
+  port. Defaults to `https://localhost:8181`. Alternatively set the
+  `SYLVE_HOST` environment variable to just the hostname (e.g.
+  `server.example.com`) and the plugin constructs `https://<host>:8181`
+  automatically.
+
+- `sylve_auth_type` (string) - Authentication type used in the login request.
+  Valid values: `"sylve"` (native database account, default) or `"pam"`
+  (PAM authentication). Falls back to the `SYLVE_AUTH_TYPE` environment
+  variable.
+
+- `tls_skip_verify` (bool) - Disables TLS certificate verification. Defaults
+  to `true` because Sylve ships with a self-signed certificate. Set to `false`
+  when using a trusted certificate.
+
+- `sylve_api_login_timeout` (string) - How long to keep retrying the initial
+  login when the Sylve API is unreachable. Accepts Go duration strings, e.g.
+  `"2m"`. Defaults to `"2m"`. Falls back to the `SYLVE_API_LOGIN_TIMEOUT`
+  environment variable. Ignored when `sylve_token` is set.
+
+### VM Selection
+
+**Required**:
+
+- `vm_name` (string) - Name of the existing VM registered in Sylve to use as
+  the build base. The builder looks up the VM by name and fails if it is not
+  found.
+
+### Snapshot Configuration
+
+**Optional**:
+
+- `preserve_original` (bool) - When `true`, the builder takes a ZFS snapshot
+  of each disk dataset attached to the VM before booting and rolls back to it
+  in the cleanup step if the build fails. Only `zvol` and filesystem-backed
+  storages are snapshotted; raw image and other storage types are skipped.
+  Defaults to `false`.
+
+### Boot Configuration
+
+**Optional**:
+
+- `boot_wait` (string) - Duration to wait after the VM starts (and its IP is
+  discovered) before attempting the communicator connection. Accepts Go
+  duration strings, e.g. `"1m"`, `"90s"`. Useful for Windows guests that need
+  time to start WinRM before Packer connects. Defaults to `"0s"` (no wait).
+
+### Shutdown Configuration
+
+**Optional**:
+
+- `shutdown_command` (string) - Shell command sent to the guest via the
+  communicator to initiate a graceful shutdown. When empty, the builder calls
+  the Sylve StopVM API directly without sending a command to the guest. For
+  Windows guests with `preserve_original = true`, use
+  `"shutdown /s /f /t 5"` so the rolled-back snapshot is always a
+  clean-shutdown disk image.
+
+### Post-Build Behaviour
+
+**Optional**:
+
+- `keep_registered` (bool) - Controls whether the VM remains registered in
+  Sylve after the build. Defaults to `true`. Incompatible with
+  `destroy = true`.
+
+- `destroy` (bool) - When `true`, the VM and all its storage are deleted from
+  Sylve after a successful build. Defaults to `false`. When set, `keep_registered`
+  is ignored.
+
+### Communicator Configuration
+
+The builder supports the standard Packer communicator blocks. See the
+[Packer communicator documentation][packer-communicators] for full reference.
+
+**Common options**:
+
+- `communicator` (string) - `"ssh"` (default) or `"winrm"`.
+
+- `ssh_username` (string) - SSH username.
+
+- `ssh_password` (string) - SSH password. Mutually exclusive with
+  `ssh_private_key_file`.
+
+- `ssh_private_key_file` (string) - Path to a PEM-encoded private key file.
+
+- `ssh_timeout` (string) - Maximum time to wait for an SSH connection.
+  Defaults to `"5m"`.
+
+**WinRM options** (when `communicator = "winrm"`):
+
+- `winrm_username` (string) - WinRM username.
+
+- `winrm_password` (string) - WinRM password.
+
+- `winrm_port` (number) - WinRM TCP port on the guest. `5985` = HTTP
+  (default), `5986` = HTTPS.
+
+- `winrm_timeout` (string) - Maximum time to wait for WinRM to become
+  available. Defaults to `"30m"`. For typical Windows boot times, `"3m"` is
+  sufficient when combined with an appropriate `boot_wait`.
+
+- `winrm_use_ssl` (bool) - Connect over HTTPS (port 5986). Defaults to
+  `false`.
+
+- `winrm_insecure` (bool) - Disable TLS certificate validation when
+  `winrm_use_ssl = true`. Defaults to `false`.
+
+## WinRM Auto-Tunnel
+
+When `communicator = "winrm"` and the Packer host cannot reach the VM's
+DHCP-assigned IP directly (the common case when Sylve uses an internal bridge
+network), the builder automatically opens an SSH port-forward from a random
+`localhost` port on the Packer host to the VM's WinRM port through the Sylve
+host:
+
+```
+Packer host                Sylve host              Windows VM
+  localhost:NNNNN  ──SSH──>  server.example.com  ──TCP──>  10.200.0.x:5985
+```
+
+No manual configuration is required. The tunnel reuses the same SSH
+credential resolution order as the SSH auto-bastion:
+
+1. `SYLVE_SSH_PROXY_KEY` environment variable (path to a PEM key file)
+2. `IdentityFile` entries in `~/.ssh/config` for the Sylve host
+3. Default key files (`~/.ssh/id_ed25519`, `~/.ssh/id_rsa`, etc.)
+4. SSH agent (`SSH_AUTH_SOCK`)
+
+To bypass the tunnel and manage routing yourself, set `winrm_host`
+explicitly in HCL — the tunnel is skipped whenever `winrm_host` is
+non-empty.
+
+### Windows Guest Prerequisites
+
+Run the following once in an elevated PowerShell session on the Windows guest
+before the first Packer build, then shut the VM down cleanly so the
+configuration is captured in the pre-build snapshot:
+
+```powershell
+winrm quickconfig -quiet
+Set-Item WSMan:\localhost\Service\AllowUnencrypted $true
+winrm set winrm/config/service/auth '@{Basic="true"}'
+shutdown /s /t 0
+```
+
+[sylve]: https://github.com/AlchemillaHQ/Sylve
 [docs-sylve-iso]: sylve-iso.mdx
+[packer-communicators]: https://developer.hashicorp.com/packer/docs/communicators

@@ -23,8 +23,9 @@ examples/sylve-iso/hello-debian
 examples/sylve-iso/hello-freebsd
 examples/sylve-iso/hello-openbsd
 
-# Packer debug log
+# Packer debug logs (may contain JWTs from Sylve API responses)
 packer.log
+packer-*.log
 
 # SBOM and security scan artifacts
 sbom.cdx.xml

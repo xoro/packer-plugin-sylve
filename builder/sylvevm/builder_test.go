@@ -4,11 +4,7 @@
 package sylvevm
 
 import (
-	"context"
-	"io"
 	"testing"
-
-	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
 )
 
 func TestBuilder_ConfigSpec_NotNil(t *testing.T) {
@@ -18,11 +14,67 @@ func TestBuilder_ConfigSpec_NotNil(t *testing.T) {
 	}
 }
 
-func TestBuilder_Prepare_NoError(t *testing.T) {
+// TestBuilder_Prepare_RequiresVMName verifies that Prepare rejects a config with
+// no vm_name — the builder requires an existing VM to work with.
+func TestBuilder_Prepare_RequiresVMName(t *testing.T) {
 	b := &Builder{}
 	_, _, err := b.Prepare()
+	if err == nil {
+		t.Fatal("Prepare() expected error when vm_name is missing, got nil")
+	}
+}
+
+// TestBuilder_Prepare_ValidMinimal verifies that Prepare succeeds when the
+// minimum required fields are set.
+func TestBuilder_Prepare_ValidMinimal(t *testing.T) {
+	b := &Builder{}
+	_, _, err := b.Prepare(map[string]interface{}{
+		"vm_name":      "my-vm",
+		"sylve_token":  "tok",
+		"communicator": "ssh",
+		"ssh_username": "admin",
+		"ssh_password": "pass",
+	})
 	if err != nil {
-		t.Fatalf("Prepare() returned error: %v", err)
+		t.Fatalf("Prepare() returned unexpected error: %v", err)
+	}
+}
+
+func TestBuilder_Prepare_InvalidBootWait(t *testing.T) {
+	b := &Builder{}
+	_, _, err := b.Prepare(map[string]interface{}{
+		"vm_name":      "vm1",
+		"sylve_token":  "tok",
+		"communicator": "ssh",
+		"ssh_username": "root",
+		"boot_wait":    "forty-two-bats",
+	})
+	if err == nil {
+		t.Fatal("expected Prepare error for invalid boot_wait")
+	}
+}
+
+func TestBuilder_Prepare_SYLVE_HOST_BuildsDefaultURL(t *testing.T) {
+	t.Setenv("SYLVE_HOST", "sylve.test-host.example")
+	t.Setenv("SYLVE_TOKEN", "from-env-token")
+	t.Setenv("SYLVE_USER", "")
+	t.Setenv("SYLVE_PASSWORD", "")
+
+	b := &Builder{}
+	_, _, err := b.Prepare(map[string]interface{}{
+		"vm_name":      "vm1",
+		"communicator": "ssh",
+		"ssh_username": "u",
+		"ssh_password": "p",
+	})
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	if b.config.SylveURL != "https://sylve.test-host.example:8181" {
+		t.Fatalf("SylveURL = %q, want default from SYLVE_HOST", b.config.SylveURL)
+	}
+	if b.config.SylveToken != "from-env-token" {
+		t.Fatalf("SylveToken = %q, want token from environment", b.config.SylveToken)
 	}
 }
 
@@ -32,14 +84,16 @@ func TestBuilderID_Value(t *testing.T) {
 	}
 }
 
-func TestBuilder_Run_ReturnsNilArtifact(t *testing.T) {
-	b := &Builder{}
-	ui := &packersdk.BasicUi{Writer: io.Discard, ErrorWriter: io.Discard}
-	art, err := b.Run(context.Background(), ui, nil)
+func TestConfig_Prepare_MalformedSylveURL_SkipsAutoBastion(t *testing.T) {
+	t.Setenv("SYLVE_TOKEN", "tok")
+	c := &Config{}
+	_, _, err := c.Prepare(map[string]interface{}{
+		"vm_name":      "vm1",
+		"sylve_url":    "http://%ZZZ", // url.Parse error; bastion block must not panic
+		"communicator": "ssh",
+		"ssh_username": "root",
+	})
 	if err != nil {
-		t.Fatalf("Run() returned error: %v", err)
-	}
-	if art != nil {
-		t.Fatal("expected nil artifact from stub builder")
+		t.Fatalf("unexpected Prepare error: %v", err)
 	}
 }

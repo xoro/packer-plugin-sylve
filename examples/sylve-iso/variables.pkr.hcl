@@ -30,9 +30,9 @@ packer {
 // ---------------------------------------------------------------------------
 
 variable "sylve_url" {
-  description = "Base URL of the Sylve instance, e.g. https://192.168.1.10:8181."
+  description = "Base URL of the Sylve instance. Leave empty to use SYLVE_HOST env var (plugin constructs https://<host>:8181)."
   type        = string
-  default     = "https://localhost:8181"
+  default     = ""
 }
 
 variable "sylve_token" {

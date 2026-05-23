@@ -67,6 +67,43 @@ func TestDefaultISOSteps_RestartAfterInstallAddsStep(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// isoBuildStepsForRun
+// ---------------------------------------------------------------------------
+
+func TestIsoBuildStepsForRun_NoHookUsesDefaultSteps(t *testing.T) {
+	t.Cleanup(func() { isoBuildStepsHook = nil })
+	b := &Builder{config: Config{}}
+	nWithout := len(b.isoBuildStepsForRun())
+	b.config.RestartAfterInstall = true
+	nWith := len(b.isoBuildStepsForRun())
+	if nWithout != 10 {
+		t.Fatalf("isoBuildStepsForRun without restart = %d, want 10", nWithout)
+	}
+	if nWith != 11 {
+		t.Fatalf("isoBuildStepsForRun with restart = %d, want 11", nWith)
+	}
+}
+
+func TestIsoBuildStepsForRun_UsesHookWhenSet(t *testing.T) {
+	t.Cleanup(func() { isoBuildStepsHook = nil })
+	var hooked *Builder
+	isoBuildStepsHook = func(b *Builder) []multistep.Step {
+		hooked = b
+		return []multistep.Step{stubArtifactStep{}}
+	}
+
+	b := &Builder{}
+	steps := b.isoBuildStepsForRun()
+
+	if hooked != b {
+		t.Fatal("hook did not receive builder receiver")
+	}
+	if len(steps) != 1 {
+		t.Fatalf("hook steps=%d want 1", len(steps))
+	}
+}
+
+// ---------------------------------------------------------------------------
 // switchNames
 // ---------------------------------------------------------------------------
 

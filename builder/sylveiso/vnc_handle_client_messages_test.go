@@ -120,6 +120,41 @@ func TestHandleVNCClient_ClientMessageTypes(t *testing.T) {
 	_, _ = cli.Write([]byte{99})
 }
 
+func TestHandleVNCClient_KeyEventWithoutUpstreamConn(t *testing.T) {
+	up := &vnc.ClientConn{FrameBufferWidth: 4, FrameBufferHeight: 4}
+	ss := newVNCViewServer(up)
+	ss.mu.Lock()
+	ss.conn = nil
+	ss.mu.Unlock()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_ = ss.start(ctx, ln)
+
+	cli, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+
+	if err := completeRFBHandshake(t, cli); err != nil {
+		t.Fatal(err)
+	}
+
+	key := make([]byte, 8)
+	key[0] = 4
+	key[1] = 1
+	binary.BigEndian.PutUint32(key[4:8], 0xff)
+	if _, err := cli.Write(key); err != nil {
+		t.Fatal(err)
+	}
+	_ = cli.Close()
+}
+
 func TestHandleVNCClient_KeyEventForwarded(t *testing.T) {
 	r, w := net.Pipe()
 	go func() { _, _ = io.Copy(io.Discard, r) }()

@@ -50,6 +50,20 @@ var randReadFn = rand.Read
 // replace it to exercise the remote TCP probe branch without depending on DNS.
 var isRemoteHostForVNCPort = isRemoteHost
 
+// rawConnControlFn and setSOReuseAddrZeroFn back exclusiveListenFn; vncPortListenFn
+// binds the chosen VNC view port. All are overridable in tests.
+var (
+	rawConnControlFn = func(c syscall.RawConn, fn func(fd uintptr)) error {
+		return c.Control(fn)
+	}
+	setSOReuseAddrZeroFn = func(fd uintptr) error {
+		return syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
+	}
+	vncPortListenFn = func(network, address string) (net.Listener, error) {
+		return net.Listen(network, address)
+	}
+)
+
 // exclusiveListenFn attempts to bind addr on TCP without SO_REUSEADDR, so that
 // TIME_WAIT sockets left by previous VNC connections are detected as occupied.
 // Bhyve's fbuf device binds without SO_REUSEADDR; Go's net.Listen uses
@@ -61,11 +75,11 @@ var exclusiveListenFn = func(addr string) error {
 	lc := net.ListenConfig{
 		Control: func(_, _ string, c syscall.RawConn) error {
 			var setSockoptErr error
-			if err := c.Control(func(fd uintptr) {
+			if err := rawConnControlFn(c, func(fd uintptr) {
 				// Clear SO_REUSEADDR that Go's net package sets by default.
 				// The subsequent bind(2) then fails when a TIME_WAIT socket
 				// occupies the port, matching bhyve's behaviour.
-				setSockoptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
+				setSockoptErr = setSOReuseAddrZeroFn(fd)
 			}); err != nil {
 				return err
 			}
@@ -401,7 +415,7 @@ func (s *StepCreateVM) selectVNCPort(c *client.Client, state multistep.StateBag)
 		// Accept() on this listener directly, eliminating any TOCTOU race.
 		// When Packer runs on the same host as Sylve this also catches Bhyve's
 		// loopback-bound ports (127.0.0.1:port).
-		ln, listenErr := net.Listen("tcp", addr)
+		ln, listenErr := vncPortListenFn("tcp", addr)
 		if listenErr != nil {
 			continue
 		}

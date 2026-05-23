@@ -42,6 +42,13 @@ var netDialUDPForHTTPIP = func(network, address string) (net.Conn, error) {
 	return net.Dial(network, address)
 }
 
+// vncFallbackListenFn binds a localhost listener used when VM creation released
+// the pre-bound vnc_view_listener. Tests may fail it deliberately to exercise
+// the degraded UI path without consuming real ports.
+var vncFallbackListenFn = func(network, addr string) (net.Listener, error) {
+	return net.Listen(network, addr)
+}
+
 // localHTTPIPForSwitch returns the IP that the packer HTTP server should
 // advertise to the guest via {{ .HTTPIP }} when packer is running on the same
 // host as Sylve.
@@ -61,6 +68,12 @@ var netDialUDPForHTTPIP = func(network, address string) (net.Conn, error) {
 //
 // netInterfaces is a variable so tests can inject a fake interface list.
 var netInterfaces = net.Interfaces
+
+// ifaceAddrsForLocalHTTPIP returns addresses for an interface when deriving the
+// local HTTP source IP; overridable in tests.
+var ifaceAddrsForLocalHTTPIP = func(iface net.Interface) ([]net.Addr, error) {
+	return iface.Addrs()
+}
 
 func localHTTPIPForSwitch(candidateIP string, vncHost string) string {
 	ip := net.ParseIP(candidateIP)
@@ -84,7 +97,7 @@ func localHTTPIPForSwitch(candidateIP string, vncHost string) string {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		addrs, err := iface.Addrs()
+		addrs, err := ifaceAddrsForLocalHTTPIP(iface)
 		if err != nil {
 			continue
 		}
@@ -333,7 +346,7 @@ func (s *StepVNCBootCommand) Run(ctx context.Context, state multistep.StateBag) 
 		// The pre-bound listener was released before bhyve started so bhyve could
 		// bind its VNC port. Now that the upstream VNC connection is established,
 		// bind a fresh listener on any free port for local viewing.
-		if freshLN, freshErr := net.Listen("tcp", "127.0.0.1:0"); freshErr == nil {
+		if freshLN, freshErr := vncFallbackListenFn("tcp", "127.0.0.1:0"); freshErr == nil {
 			vncPort := ss.start(ctx, freshLN)
 			ui.Say(fmt.Sprintf("VNC view server listening on localhost:%d — connect with any VNC viewer", vncPort))
 		} else {
