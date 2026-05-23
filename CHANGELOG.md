@@ -3,6 +3,12 @@
 
 # Changelog
 
+## [0.1.7] - 2026-05-23
+
+### Features
+
+- _(sylvevm)_ Add WinRM auto-tunnel and boot_wait support
+
 ## [0.1.6] - 2026-04-28
 
 ### Bug Fixes
