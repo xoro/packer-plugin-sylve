@@ -38,6 +38,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
 
       - name: Run all quality checks
         run: ./bin/run_all_quality_checks.sh
@@ -74,6 +78,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Run example (${{ matrix.builder }} ${{ matrix.os-name }})
         run: ./bin/run_example.sh "${{ matrix.builder }}" "${{ matrix.os-name }}"
