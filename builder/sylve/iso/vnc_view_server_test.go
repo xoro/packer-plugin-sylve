@@ -553,3 +553,52 @@ func TestDrainServerMsgCh_Timeout(t *testing.T) {
 		t.Fatal("drainServerMsgCh did not return after deadline")
 	}
 }
+
+// TestDrainServerMsgCh_ChannelClosed verifies that drainServerMsgCh returns
+// when the channel is closed (covering the ok==false branch deterministically).
+func TestDrainServerMsgCh_ChannelClosed(t *testing.T) {
+	orig := drainServerMsgChTimeout
+	drainServerMsgChTimeout = 5 * time.Second
+	defer func() { drainServerMsgChTimeout = orig }()
+
+	ch := make(chan vnc.ServerMessage)
+	done := make(chan struct{})
+	go func() {
+		drainServerMsgCh(ch)
+		close(done)
+	}()
+	// Close the channel so drainServerMsgCh exits via the ok==false path.
+	close(ch)
+	select {
+	case <-done:
+		// Returned via channel close — success.
+	case <-time.After(2 * time.Second):
+		t.Fatal("drainServerMsgCh did not return after channel close")
+	}
+}
+
+// TestDrainServerMsgCh_DrainsMessages verifies that drainServerMsgCh consumes
+// messages before the channel is closed (covering the ok==true branch).
+func TestDrainServerMsgCh_DrainsMessages(t *testing.T) {
+	orig := drainServerMsgChTimeout
+	drainServerMsgChTimeout = 5 * time.Second
+	defer func() { drainServerMsgChTimeout = orig }()
+
+	ch := make(chan vnc.ServerMessage, 3)
+	// Send some messages then close.
+	ch <- &vnc.FramebufferUpdateMessage{}
+	ch <- &vnc.FramebufferUpdateMessage{}
+	close(ch)
+
+	done := make(chan struct{})
+	go func() {
+		drainServerMsgCh(ch)
+		close(done)
+	}()
+	select {
+	case <-done:
+		// Drained messages and returned — success.
+	case <-time.After(2 * time.Second):
+		t.Fatal("drainServerMsgCh did not return after draining messages")
+	}
+}

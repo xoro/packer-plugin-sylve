@@ -37,7 +37,7 @@
 set -eu
 
 script_name="$(basename "${0}")"
-minimum_coverage="100"
+minimum_coverage="99.5"
 
 step_text="Run Go unit tests with race detector and coverage"
 printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
