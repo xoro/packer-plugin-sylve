@@ -257,15 +257,17 @@ func (s *StepVNCBootCommand) Run(ctx context.Context, state multistep.StateBag) 
 
 	wsHeaders := http.Header{}
 
-	// Always include PasswordAuth so the client can negotiate VNC auth type 2
-	// (DES challenge-response). Bhyve advertises type 2 even with an empty
-	// password; without this handler the handshake fails with "no suitable
+	// Include both None (type 1) and PasswordAuth (type 2) so the client can
+	// negotiate whichever security type bhyve advertises. Bhyve advertises
+	// type 2 when a VNC password is configured and type 1 (None) otherwise.
+	// Without the matching handler the handshake fails with "no suitable
 	// auth schemes found".
 	serverMsgCh := make(chan vnc.ServerMessage, 200)
 	vncCfg := &vnc.ClientConfig{
 		Exclusive:       false,
 		ServerMessageCh: serverMsgCh,
 		Auth: []vnc.ClientAuth{
+			new(vnc.ClientAuthNone),
 			&vnc.PasswordAuth{Password: s.Config.VNCPassword},
 		},
 	}
@@ -390,6 +392,7 @@ func (s *StepVNCBootCommand) Run(ctx context.Context, state multistep.StateBag) 
 				Exclusive:       false,
 				ServerMessageCh: newMsgCh,
 				Auth: []vnc.ClientAuth{
+					new(vnc.ClientAuthNone),
 					&vnc.PasswordAuth{Password: s.Config.VNCPassword},
 				},
 			}

@@ -242,18 +242,6 @@ shutoffLoop:
 
 		if vm.State == client.DomainStateRunning || vm.State == client.DomainStateBlocked {
 			log.Printf("[DEBUG] VM rid=%d is running", rid)
-			// Reconnect the VNC view server to the new bhyve instance so a
-			// connected viewer can watch the installed-OS boot.  This runs
-			// after StartVM confirms the new bhyve is accepting connections,
-			// which is the earliest reliable moment to dial the VNC WebSocket.
-			if rfn, ok := state.GetOk("vnc_reconnect"); ok {
-				if fn, ok := rfn.(vncReconnectFunc); ok {
-					log.Printf("[DEBUG] Reconnecting VNC view server to installed-OS bhyve...")
-					if err := fn(ctx, ui); err != nil {
-						log.Printf("[DEBUG] VNC reconnect (non-fatal): %s", err)
-					}
-				}
-			}
 			return multistep.ActionContinue
 		}
 	}

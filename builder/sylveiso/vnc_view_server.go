@@ -448,6 +448,19 @@ func (ss *vncViewServer) sendFramebufferUpdate(c net.Conn, x, y, w, h uint16) er
 // FramebufferUpdateRequest.
 func (ss *vncViewServer) swapConn(ctx context.Context, newConn *vnc.ClientConn, serverMsgCh <-chan vnc.ServerMessage) {
 	ss.mu.Lock()
+	// Guard: if Stop() has already run, reject the new connection immediately.
+	// A reconnect goroutine can race with Stop(): Stop sets ss.stopped=true and
+	// ss.conn=nil while a reconnect goroutine is in the middle of dialing.
+	// Without this guard swapConn installs newConn, the new poller exits
+	// immediately (stopped=true), and the go-vnc reader goroutine is left
+	// orphaned — it fills serverMsgCh with FramebufferUpdateMessage objects
+	// (~4 MB each, channel capacity 200) that nobody ever drains, bloating the
+	// heap to ~800 MB and pegging all GC threads at 800%+ CPU.
+	if ss.stopped {
+		ss.mu.Unlock()
+		_ = newConn.Close()
+		return
+	}
 	if ss.conn != nil {
 		_ = ss.conn.Close()
 	}
@@ -473,10 +486,40 @@ func (ss *vncViewServer) runFramebufferPoller(ctx context.Context, serverMsgCh <
 	ss.runFramebufferPollerInner(ctx, serverMsgCh, true)
 }
 
+// drainServerMsgCh discards VNC server messages from ch until ch is closed or
+// 30 seconds elapse. It is called after runFramebufferPollerInner exits so the
+// go-vnc reader goroutine can unblock from a full-channel send, detect the
+// closed upstream connection, and terminate — freeing the ~800 MB of FBU pixel
+// data that would otherwise be held live by the blocked goroutine.
+func drainServerMsgCh(ch <-chan vnc.ServerMessage) {
+	deadline := time.After(30 * time.Second)
+	for {
+		select {
+		case _, ok := <-ch:
+			if !ok {
+				return
+			}
+		case <-deadline:
+			return
+		}
+	}
+}
+
 // runFramebufferPollerInner is the shared implementation. When autoReconnect
 // is true and the upstream channel closes (guest reboot), it calls the stored
 // reconnect function in a goroutine so the viewer stays live.
 func (ss *vncViewServer) runFramebufferPollerInner(ctx context.Context, serverMsgCh <-chan vnc.ServerMessage, autoReconnect bool) {
+	// After this poller exits, drain serverMsgCh in a background goroutine so
+	// the go-vnc reader goroutine can unblock from a full-channel send, detect
+	// the closed upstream connection, and exit cleanly.
+	// Root cause: if the 500ms ticker fires and sees stopped=true, the poller
+	// exits without having read all pending messages. The go-vnc goroutine is
+	// then blocked on a full channel send — conn.Close() cannot unblock a
+	// goroutine stuck on a channel operation, so the goroutine (and the ~800 MB
+	// of FBU pixel data buffered in the channel) remain live indefinitely,
+	// causing the GC to spin at 800%+ CPU during the provisioning phase.
+	defer func() { go drainServerMsgCh(serverMsgCh) }()
+
 	ss.mu.RLock()
 	conn := ss.conn
 	stopped := ss.stopped
