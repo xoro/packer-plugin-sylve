@@ -531,3 +531,25 @@ func TestVNCViewServer_StartReturnsPort(t *testing.T) {
 		t.Fatalf("expected positive port, got %d", port)
 	}
 }
+
+// TestDrainServerMsgCh_Timeout verifies that drainServerMsgCh returns when the
+// deadline elapses and the channel is still open (no messages arriving).
+func TestDrainServerMsgCh_Timeout(t *testing.T) {
+	orig := drainServerMsgChTimeout
+	drainServerMsgChTimeout = 10 * time.Millisecond
+	defer func() { drainServerMsgChTimeout = orig }()
+
+	// Channel stays open with no messages — forces the deadline path.
+	ch := make(chan vnc.ServerMessage)
+	done := make(chan struct{})
+	go func() {
+		drainServerMsgCh(ch)
+		close(done)
+	}()
+	select {
+	case <-done:
+		// drainServerMsgCh returned via deadline — success.
+	case <-time.After(2 * time.Second):
+		t.Fatal("drainServerMsgCh did not return after deadline")
+	}
+}

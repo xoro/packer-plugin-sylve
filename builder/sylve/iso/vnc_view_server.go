@@ -491,8 +491,13 @@ func (ss *vncViewServer) runFramebufferPoller(ctx context.Context, serverMsgCh <
 // go-vnc reader goroutine can unblock from a full-channel send, detect the
 // closed upstream connection, and terminate — freeing the ~800 MB of FBU pixel
 // data that would otherwise be held live by the blocked goroutine.
+//
+// drainServerMsgChTimeout is exposed as a variable so tests can shorten the
+// deadline without waiting 30 real seconds.
+var drainServerMsgChTimeout = 30 * time.Second
+
 func drainServerMsgCh(ch <-chan vnc.ServerMessage) {
-	deadline := time.After(30 * time.Second)
+	deadline := time.After(drainServerMsgChTimeout)
 	for {
 		select {
 		case _, ok := <-ch:
