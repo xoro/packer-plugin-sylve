@@ -17,7 +17,25 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    if: ${{ github.ref != 'refs/tags/v0.1.0' && github.ref != 'refs/tags/v0.1.1' }}
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run unit tests
+        run: ./bin/run_unit_tests.sh
+
   goreleaser:
+    needs: test
     if: ${{ github.ref != 'refs/tags/v0.1.0' && github.ref != 'refs/tags/v0.1.1' }}
     runs-on: ubuntu-latest
     env:

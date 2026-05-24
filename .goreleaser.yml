@@ -23,7 +23,6 @@ env:
 
 before:
   hooks:
-    - go test ./...
     - make install-packer-sdc plugin-check
 
 builds:
