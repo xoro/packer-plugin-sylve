@@ -94,17 +94,45 @@ source "sylve-iso" "freebsd" {
   keep_on_error         = var.keep_on_error
 }
 
+// FreeBSD sylve-vm example.
+// Common variables are declared in variables.pkr.hcl in this directory.
+//
+// Creates a new VM from an existing Sylve template, provisions it via SSH,
+// and shuts down cleanly. The VM is kept registered after the build
+// (keep_registered = true).
+
+source "sylve-vm" "freebsd" {
+  // Connection
+  sylve_url      = var.sylve_url
+  sylve_token    = var.sylve_token
+  sylve_user     = var.sylve_user
+  sylve_password = var.sylve_password
+
+  // Template to clone from and name for the new VM.
+  source_template = "packer-freebsd.localdomain"
+  vm_name         = "{{build_type}}_{{build_name}}_{{uuid}}"
+
+  boot_wait = "30s"
+
+  // SSH communicator
+  communicator = "ssh"
+  ssh_username = var.ssh_username
+  ssh_password = var.ssh_password
+  ssh_timeout  = var.ssh_timeout
+
+  // Shut down via SSH so the filesystem is cleanly unmounted.
+  shutdown_command = "/sbin/shutdown -p now"
+
+  // Leave the VM registered in Sylve after a successful build.
+  keep_registered = false
+}
+
 // ---------------------------------------------------------------------------
 // Build
 // ---------------------------------------------------------------------------
 
 build {
-  sources = ["source.sylve-iso.freebsd"]
-
-  // Install gcc from the FreeBSD package repository.
-  provisioner "shell" {
-    inline = ["pkg install --yes gcc"]
-  }
+  sources = ["source.sylve-iso.freebsd", "source.sylve-vm.freebsd"]
 
   // Upload main.c from the Packer host to the guest.
   provisioner "file" {
@@ -112,9 +140,12 @@ build {
     destination = "/tmp/main.c"
   }
 
-  // Compile main.c on the guest.
+  // Compile main.c on the guest and run the resulting binary.
   provisioner "shell" {
-    inline = ["cc -o /tmp/hello /tmp/main.c"]
+    inline = [
+      "cc -o /tmp/hello /tmp/main.c",
+      "/tmp/hello",
+    ]
   }
 
   // Download the compiled binary from the guest back to the Packer host.

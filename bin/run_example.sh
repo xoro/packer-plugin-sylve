@@ -19,14 +19,17 @@
 # 5. Runs packer init and packer build in the example directory.
 #
 # Usage:
-#   ./bin/run_example.sh <os-name>
+#   ./bin/run_example.sh <builder> <os-name>
 #
 # Examples:
-#   ./bin/run_example.sh alpine
+#   ./bin/run_example.sh iso alpine
+#   ./bin/run_example.sh vm freebsd
 #
 # Arguments:
-#   os-name  Name of the OS example to run. Must match a directory under
-#            examples/sylve-iso/<os-name>/ containing a *.pkr.hcl template.
+#   builder  Builder type to run: "iso" or "vm". Selects the source via
+#            -only=sylve-<builder>.<os-name>.
+#   os-name  Name of the OS example to run. Must match a file
+#            examples/<os-name>.pkr.hcl.
 #
 # Environment Variables:
 #   SYLVE_URL      Full base URL of the Sylve instance, e.g. https://host:8181.
@@ -65,14 +68,27 @@ repo_root="$(cd "$(dirname "${0}")/.." && pwd)"
 # Argument validation
 # ---------------------------------------------------------------------------
 
-if [ "${#}" -ne 1 ]; then
-    printf "%b %b ERROR: ==>> Usage: %b <os-name>\n" \
+if [ "${#}" -ne 2 ]; then
+    printf "%b %b ERROR: ==>> Usage: %b <builder> <os-name>\n" \
         "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${script_name}"
+    printf "%b %b ERROR: ==>> builder must be 'iso' or 'vm'\n" \
+        "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
     exit 1
 fi
 
-os_name="${1}"
-example_dir="${repo_root}/examples/sylve-iso"
+builder_type="${1}"
+os_name="${2}"
+
+case "${builder_type}" in
+iso | vm) ;;
+*)
+    printf "%b %b ERROR: ==>> Invalid builder type: %b (must be 'iso' or 'vm')\n" \
+        "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${builder_type}"
+    exit 1
+    ;;
+esac
+
+example_dir="${repo_root}/examples"
 
 # Always enable Packer debug logging; write to a file so the build output
 # is not interleaved with the verbose log on stdout.
@@ -106,7 +122,7 @@ printf "%b %b INFO:  ==>> SUCCEEDED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${scr
 # Step 2: packer init (downloads any missing plugins from the registry)
 # ---------------------------------------------------------------------------
 
-step_text="packer init examples/sylve-iso"
+step_text="packer init examples"
 printf "\n%b %b INFO:  ==>> STEP: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
 cd "${example_dir}"
 if ! packer init .; then
@@ -154,7 +170,7 @@ if [ -n "${resolved_switch}" ]; then
     build_args="${build_args} -var switch_name=${resolved_switch}"
 fi
 
-build_args="${build_args} -only=sylve-iso.${os_name}"
+build_args="${build_args} -only=sylve-${builder_type}.${os_name}"
 
 # shellcheck disable=SC2086
 if ! packer build -timestamp-ui ${build_args} .; then

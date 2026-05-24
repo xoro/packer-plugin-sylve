@@ -22,11 +22,10 @@ import (
 
 // Config is the configuration for the sylve-vm builder.
 //
-// The sylve-vm builder connects to an EXISTING VM registered in Sylve (identified
-// by vm_name), optionally snapshots its storage disks before booting, runs
-// provisioners via SSH or WinRM, shuts the VM down, and optionally destroys it.
-// It never modifies the Sylve host via SSH — all interaction uses the Sylve REST
-// API.
+// The sylve-vm builder creates a new VM from a named Sylve template, starts it,
+// runs provisioners via SSH or WinRM, shuts the VM down, and either keeps or
+// destroys it based on keep_registered. It never modifies the Sylve host via
+// SSH — all interaction uses the Sylve REST API.
 type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
 	communicator.Config `mapstructure:",squash"`
@@ -69,17 +68,14 @@ type Config struct {
 	// out-of-box Sylve installations work without manual certificate trust.
 	TLSSkipVerify bool `mapstructure:"tls_skip_verify"`
 
-	// VMName is the name of the EXISTING VM to use as the build base.
+	// SourceTemplate is the name of the Sylve template to create the VM from.
+	// Required.
+	SourceTemplate string `mapstructure:"source_template"`
+
+	// VMName is the name assigned to the newly created VM. Supports Packer
+	// template variables: {{build_type}}, {{build_name}}, {{uuid}}.
 	// Required.
 	VMName string `mapstructure:"vm_name"`
-
-	// PreserveOriginal controls ZFS snapshot/rollback for the VM's storage
-	// datasets. When true, the builder takes a snapshot of each disk before
-	// booting and rolls back to it in the Cleanup step if the build succeeds or
-	// fails. Only zvol and filesystem-backed storages are snapshotted; raw image
-	// and other types are skipped.
-	// Defaults to false.
-	PreserveOriginal bool `mapstructure:"preserve_original"`
 
 	// ShutdownCommand is the command used to shut down the VM gracefully before
 	// the builder finishes. The command is sent via the communicator (SSH or
@@ -88,15 +84,10 @@ type Config struct {
 	// shutdown is handled by boot_command or scripts.
 	ShutdownCommand string `mapstructure:"shutdown_command"`
 
-	// KeepRegistered controls whether the VM remains in the Sylve registry after
-	// the build. Defaults to true. Set to false to deregister the VM but not
-	// destroy its storage (equivalent to removing from Sylve without wiping disks).
-	// Incompatible with destroy = true.
+	// KeepRegistered controls whether the VM remains in Sylve after the build.
+	// Defaults to true. When false, the VM and its disks are deleted after a
+	// successful build.
 	KeepRegistered bool `mapstructure:"keep_registered"`
-
-	// Destroy controls whether the VM and its disks are deleted from Sylve after
-	// a successful build. Defaults to false. When true, KeepRegistered is ignored.
-	Destroy bool `mapstructure:"destroy"`
 
 	// BootWait is the duration to wait after the VM's IP is discovered before
 	// attempting the communicator connection. Useful for Windows guests that need
@@ -182,10 +173,8 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 
 	// --- VM defaults ---
 
-	// KeepRegistered defaults to true; must be set before validating Destroy.
-	if !c.KeepRegistered {
-		c.KeepRegistered = true
-	}
+	// KeepRegistered defaults to false (VM is deleted after a successful build).
+	// A bool cannot distinguish "unset" from "false", so no override is applied.
 
 	// --- Validation ---
 
@@ -194,13 +183,11 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 			"authentication required: provide sylve_token (or SYLVE_TOKEN) "+
 				"OR both sylve_user (SYLVE_USER) and sylve_password (SYLVE_PASSWORD)"))
 	}
+	if c.SourceTemplate == "" {
+		errs = packersdk.MultiErrorAppend(errs, errors.New("source_template is required"))
+	}
 	if c.VMName == "" {
 		errs = packersdk.MultiErrorAppend(errs, errors.New("vm_name is required"))
-	}
-	if c.Destroy && !c.KeepRegistered {
-		// destroy implies full deletion; keep_registered = false is redundant but
-		// allowed. No conflict. The combination destroy=true, keep_registered=true
-		// is also allowed (destroy takes precedence).
 	}
 
 	// Auto-bastion: only for SSH communicator. When no explicit ssh_bastion_host

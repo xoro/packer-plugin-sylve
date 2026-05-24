@@ -72,11 +72,12 @@ func TestBuilder_instanceIPFromState_Missing(t *testing.T) {
 func TestConfig_Prepare_UserPasswordAuth(t *testing.T) {
 	c := &Config{}
 	_, _, err := c.Prepare(map[string]interface{}{
-		"vm_name":        "my-vm",
-		"sylve_user":     "admin",
-		"sylve_password": "pass",
-		"communicator":   "ssh",
-		"ssh_username":   "root",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_user":      "admin",
+		"sylve_password":  "pass",
+		"communicator":    "ssh",
+		"ssh_username":    "root",
 	})
 	if err != nil {
 		t.Fatalf("Prepare() failed with user+password auth: %v", err)
@@ -130,10 +131,11 @@ func TestConfig_Prepare_SylveAPILoginTimeout_EnvFallback(t *testing.T) {
 	t.Setenv("SYLVE_API_LOGIN_TIMEOUT", "10m")
 	c := &Config{}
 	_, _, err := c.Prepare(map[string]interface{}{
-		"vm_name":      "my-vm",
-		"sylve_token":  "tok",
-		"communicator": "ssh",
-		"ssh_username": "root",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_token":     "tok",
+		"communicator":    "ssh",
+		"ssh_username":    "root",
 	})
 	if err != nil {
 		t.Fatalf("Prepare() failed: %v", err)
@@ -147,10 +149,11 @@ func TestConfig_Prepare_SylveHostEnvFallback(t *testing.T) {
 	t.Setenv("SYLVE_HOST", "192.168.1.10")
 	c := &Config{}
 	_, _, err := c.Prepare(map[string]interface{}{
-		"vm_name":      "my-vm",
-		"sylve_token":  "tok",
-		"communicator": "ssh",
-		"ssh_username": "root",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_token":     "tok",
+		"communicator":    "ssh",
+		"ssh_username":    "root",
 	})
 	if err != nil {
 		t.Fatalf("Prepare() failed: %v", err)
@@ -172,10 +175,11 @@ func TestConfig_Prepare_DefaultSylveAuthType(t *testing.T) {
 	t.Setenv("SYLVE_AUTH_TYPE", "")
 	c := &Config{}
 	_, _, err := c.Prepare(map[string]interface{}{
-		"vm_name":      "my-vm",
-		"sylve_token":  "tok",
-		"communicator": "ssh",
-		"ssh_username": "root",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_token":     "tok",
+		"communicator":    "ssh",
+		"ssh_username":    "root",
 	})
 	if err != nil {
 		t.Fatalf("Prepare() failed: %v", err)
@@ -185,19 +189,34 @@ func TestConfig_Prepare_DefaultSylveAuthType(t *testing.T) {
 	}
 }
 
+func TestConfig_Prepare_CommunicatorError(t *testing.T) {
+	t.Setenv("SYLVE_HOST", "192.168.1.10")
+	c := &Config{}
+	// WinRM communicator without winrm_username triggers communicator.Prepare error.
+	_, _, err := c.Prepare(map[string]interface{}{
+		"vm_name":         "my-vm",
+		"source_template": "base",
+		"sylve_token":     "tok",
+		"communicator":    "winrm",
+	})
+	if err == nil {
+		t.Fatal("expected error when winrm communicator has no username")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // StepDeleteVM
 // ---------------------------------------------------------------------------
 
-func TestStepDeleteVM_DestroyFalse(t *testing.T) {
-	cfg := &Config{Destroy: false}
+func TestStepDeleteVM_KeepRegisteredTrue(t *testing.T) {
+	cfg := &Config{KeepRegistered: true}
 	state := newTestState(t)
 	state.Put("vm_rid", uint(5))
 
-	step := &sylvecommon.StepDeleteVM{Destroy: cfg.Destroy}
+	step := &sylvecommon.StepDeleteVM{Destroy: !cfg.KeepRegistered}
 	action := step.Run(context.TODO(), state)
 	if action != multistep.ActionContinue {
-		t.Fatalf("expected ActionContinue when Destroy=false, got %v", action)
+		t.Fatalf("expected ActionContinue when KeepRegistered=true, got %v", action)
 	}
 }
 
@@ -209,9 +228,9 @@ func TestAllSteps_CleanupNoOps(t *testing.T) {
 	state := newTestState(t)
 	cfg := &Config{}
 	(&StepBootWait{Config: cfg}).Cleanup(state)
+	(&StepFixNIC{Config: cfg}).Cleanup(state)
 	(&sylvecommon.StepDeleteVM{}).Cleanup(state)
 	(&sylvecommon.StepDiscoverIP{}).Cleanup(state)
-	(&StepFindVM{Config: cfg}).Cleanup(state)
 	(&StepShutdown{Config: cfg}).Cleanup(state)
 	(&StepStartVM{Config: cfg}).Cleanup(state)
 }

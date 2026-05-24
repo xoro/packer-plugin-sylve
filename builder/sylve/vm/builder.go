@@ -1,26 +1,25 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // Copyright (c) 2026, Timo Pallach (timo@pallach.de).
 
-// Package sylvevm implements the "sylve-vm" Packer builder.
+// Package vm implements the "sylve-vm" Packer builder.
 //
-// The builder connects to an EXISTING VM registered in Sylve, optionally
-// snapshots its ZFS storage datasets to support rollback (preserve_original),
-// starts the VM, runs configured provisioners over SSH or WinRM, shuts the VM
-// down, and optionally deletes it (destroy = true).
+// The builder creates a new VM from a named Sylve template, starts it, runs
+// configured provisioners over SSH or WinRM, shuts the VM down, and either
+// keeps or destroys it depending on keep_registered.
 //
-// Unlike sylve-iso this builder does not create a new VM — it works with VMs
-// that are already registered in Sylve and uses only the Sylve REST API
-// (no SSH access to the Sylve host itself is required).
+// Unlike sylve-iso this builder does not install from an ISO — it clones a
+// pre-existing template and uses only the Sylve REST API (no SSH access to the
+// Sylve host itself is required).
 //
 // Build lifecycle:
 //
-//  1. Find the existing VM by vm_name and validate it is stopped.
-//  2. Optionally snapshot storage disks (preserve_original = true).
+//  1. Create a new VM from the named template (source_template).
+//  2. Fix the NIC (detach disabled NIC, reattach with correct switch).
 //  3. Start the VM.
 //  4. Discover the guest's IP address via the Sylve DHCP lease API.
 //  5. Connect via SSH or WinRM and run Packer provisioners.
 //  6. Send the shutdown_command (if configured) and wait for the domain to halt.
-//  7. Optionally delete the VM from Sylve (destroy = true; default is false).
+//  7. Keep the VM (keep_registered=true) or destroy it (keep_registered=false, default).
 package vm
 
 import (
@@ -139,8 +138,8 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 	state.Put("config", &b.config)
 
 	steps := []multistep.Step{
-		&StepFindVM{Config: &b.config},
-		&StepSnapshotDisks{Config: &b.config},
+		&StepCreateFromTemplate{Config: &b.config},
+		&StepFixNIC{Config: &b.config},
 		&StepStartVM{Config: &b.config},
 		&StepBootWait{Config: &b.config},
 		&sylvecommon.StepDiscoverIP{
@@ -160,7 +159,7 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 			SylveURL:      b.config.SylveURL,
 			SylveToken:    b.config.SylveToken,
 			TLSSkipVerify: b.config.TLSSkipVerify,
-			Destroy:       b.config.Destroy,
+			Destroy:       !b.config.KeepRegistered,
 		},
 	}
 	if vmBuildStepsHook != nil {

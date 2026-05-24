@@ -95,8 +95,14 @@ variable "storage_size_mb" {
 variable "ssh_password" {
   description = "Root password set on the installed system. Used by provisioners."
   type        = string
-  default     = "sylve-example"
+  default     = "root"
   sensitive   = true
+}
+
+variable "ssh_username" {
+  description = "SSH username used by Packer to connect to the guest."
+  type        = string
+  default     = "root"
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +119,35 @@ variable "ssh_timeout" {
   description = "Maximum time to wait for SSH after the installed system reboots."
   type        = string
   default     = "1m"
+}
+
+// ---------------------------------------------------------------------------
+// WinRM communicator (Windows builds)
+// ---------------------------------------------------------------------------
+
+variable "winrm_username" {
+  description = "WinRM username for connecting to Windows guests."
+  type        = string
+  default     = "packer"
+}
+
+variable "winrm_password" {
+  description = "WinRM password for connecting to Windows guests."
+  type        = string
+  default     = "packer"
+  sensitive   = true
+}
+
+variable "winrm_port" {
+  description = "WinRM port on the Windows guest."
+  type        = number
+  default     = 5985
+}
+
+variable "winrm_timeout" {
+  description = "Maximum time to wait for WinRM to become available."
+  type        = string
+  default     = "3m"
 }
 
 // ---------------------------------------------------------------------------

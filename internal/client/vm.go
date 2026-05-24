@@ -43,12 +43,13 @@ type VMNetworkObjectEntry struct {
 
 // VMNetwork is a network interface attached to a VM.
 type VMNetwork struct {
-	ID        uint             `json:"id"`
-	MacID     *uint            `json:"macId"`
-	MAC       string           `json:"mac"`
-	MacObj    *VMNetworkObject `json:"macObj"`
-	Emulation string           `json:"emulation"`
-	VMID      uint             `json:"vmId"`
+	ID         uint             `json:"id"`
+	MacID      *uint            `json:"macId"`
+	MAC        string           `json:"mac"`
+	MacObj     *VMNetworkObject `json:"macObj"`
+	Emulation  string           `json:"emulation"`
+	SwitchName string           `json:"switchName"`
+	VMID       uint             `json:"vmId"`
 }
 
 // MACAddress returns the MAC address for this network interface.

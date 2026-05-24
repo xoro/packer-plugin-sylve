@@ -92,6 +92,15 @@ func (s *StepStartVM) Run(ctx context.Context, state multistep.StateBag) multist
 	timeout := startVMMaxWait
 	deadline := time.Now().Add(timeout)
 	var lastState client.DomainState = -1
+	// Count consecutive Shutoff/Crashed polls to distinguish a transient
+	// startup state from a genuine bhyve crash.
+	var crashPollCount int
+	const crashPollThreshold = 3
+	// Count consecutive NoState polls to detect a VM that never started.
+	// bhyve may briefly report NoState during normal startup, so a higher
+	// threshold is used.
+	var noStatePollCount int
+	const noStatePollThreshold = 10
 	for {
 		select {
 		case <-ctx.Done():
@@ -123,13 +132,53 @@ func (s *StepStartVM) Run(ctx context.Context, state multistep.StateBag) multist
 			}
 			return multistep.ActionContinue
 		}
+
+		// Detect bhyve crash: if the VM stays at Shutoff (5) or Crashed (6)
+		// for several consecutive polls, bhyve exited immediately. Fail fast
+		// and show the bhyve log instead of polling until the 15-minute timeout.
+		// A single Shutoff is tolerated because bhyve may briefly pass through
+		// this state during normal startup.
+		if vm.State == client.DomainStateShutoff || vm.State == client.DomainStateCrashed {
+			crashPollCount++
+			if crashPollCount >= crashPollThreshold {
+				bhyveLogs := ""
+				if logs, logErr := c.GetVMLogs(rid); logErr == nil {
+					bhyveLogs = logs
+				}
+				err := fmt.Errorf("VM rid=%d crashed on start (state=%d, stable for %d polls). bhyve log:\n%s",
+					rid, vm.State, crashPollCount, bhyveLogs)
+				state.Put("error", err)
+				ui.Error(err.Error())
+				return multistep.ActionHalt
+			}
+		} else {
+			crashPollCount = 0
+		}
+
+		// Detect stuck NoState: if the VM stays at NoState (0) for many
+		// consecutive polls, bhyve never launched. This typically means
+		// the domain could not be created (e.g. NIC misconfiguration).
+		if vm.State == client.DomainStateNoState {
+			noStatePollCount++
+			if noStatePollCount >= noStatePollThreshold {
+				bhyveLogs := ""
+				if logs, logErr := c.GetVMLogs(rid); logErr == nil {
+					bhyveLogs = logs
+				}
+				err := fmt.Errorf("VM rid=%d stuck in NoState (state=0) for %d consecutive polls (%s); bhyve never started. bhyve log:\n%s",
+					rid, noStatePollCount, time.Duration(noStatePollCount)*startVMPollInterval, bhyveLogs)
+				state.Put("error", err)
+				ui.Error(err.Error())
+				return multistep.ActionHalt
+			}
+		} else {
+			noStatePollCount = 0
+		}
 	}
 }
 
-// Cleanup stops the VM if it is still running so that StepSnapshotDisks can
-// roll back the ZFS zvol. ZFS cannot roll back a dataset that is actively used
-// by a running VM; without this stop the rollback call returns an error and the
-// VM disk is left in a dirty state.
+// Cleanup stops the VM if it is still running so that subsequent cleanup steps
+// (e.g. StepCreateFromTemplate deleting the VM) can operate on a stopped domain.
 func (s *StepStartVM) Cleanup(state multistep.StateBag) {
 	rid, ok := state.Get("vm_rid").(uint)
 	if !ok || rid == 0 {

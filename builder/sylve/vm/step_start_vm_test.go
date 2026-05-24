@@ -1121,3 +1121,274 @@ func TestStepStartVM_Cleanup_GetSimpleError_Returns(t *testing.T) {
 
 	(&StepStartVM{Config: cfg}).Cleanup(state)
 }
+
+func TestStepStartVM_CrashDetection_Shutoff(t *testing.T) {
+	origPoll := startVMPollInterval
+	origMax := startVMMaxWait
+	origTaskPoll := startVMTaskPoll
+	origTaskMax := startVMTaskMaxWait
+	origRetry := startVMStartRetry
+	origRetryMax := startVMStartRetryMaxWait
+	startVMPollInterval = 5 * time.Millisecond
+	startVMMaxWait = 2 * time.Second
+	startVMTaskPoll = 5 * time.Millisecond
+	startVMTaskMaxWait = 20 * time.Millisecond
+	startVMStartRetry = 5 * time.Millisecond
+	startVMStartRetryMaxWait = 20 * time.Millisecond
+	t.Cleanup(func() {
+		startVMPollInterval = origPoll
+		startVMMaxWait = origMax
+		startVMTaskPoll = origTaskPoll
+		startVMTaskMaxWait = origTaskMax
+		startVMStartRetry = origRetry
+		startVMStartRetryMaxWait = origRetryMax
+	})
+
+	const rid = uint(110)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/tasks/lifecycle/active/vm/110", func(w http.ResponseWriter, _ *http.Request) {
+		resp := map[string]interface{}{"status": "success", "data": nil}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/start/110", func(w http.ResponseWriter, _ *http.Request) {
+		resp := map[string]interface{}{"status": "success", "data": nil}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	// Always return Shutoff (5) so crash detection triggers after 3 polls.
+	mux.HandleFunc("/api/vm/simple/110", func(w http.ResponseWriter, _ *http.Request) {
+		resp := client.APIResponse[client.SimpleVM]{
+			Status: "success",
+			Data:   client.SimpleVM{RID: rid, State: client.DomainStateShutoff},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/logs/110", func(w http.ResponseWriter, _ *http.Request) {
+		type logsData struct {
+			Logs string `json:"logs"`
+		}
+		resp := map[string]interface{}{"status": "success", "data": logsData{Logs: "bhyve: error"}}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := &Config{SylveURL: srv.URL, TLSSkipVerify: true}
+	state := newTestState(t)
+	state.Put("vm_rid", rid)
+	state.Put("vm_id", rid)
+
+	step := &StepStartVM{Config: cfg}
+	action := step.Run(context.Background(), state)
+	if action != multistep.ActionHalt {
+		t.Fatalf("expected ActionHalt on crash detection, got %v", action)
+	}
+}
+
+func TestStepStartVM_CrashDetection_Crashed(t *testing.T) {
+	origPoll := startVMPollInterval
+	origMax := startVMMaxWait
+	origTaskPoll := startVMTaskPoll
+	origTaskMax := startVMTaskMaxWait
+	origRetry := startVMStartRetry
+	origRetryMax := startVMStartRetryMaxWait
+	startVMPollInterval = 5 * time.Millisecond
+	startVMMaxWait = 2 * time.Second
+	startVMTaskPoll = 5 * time.Millisecond
+	startVMTaskMaxWait = 20 * time.Millisecond
+	startVMStartRetry = 5 * time.Millisecond
+	startVMStartRetryMaxWait = 20 * time.Millisecond
+	t.Cleanup(func() {
+		startVMPollInterval = origPoll
+		startVMMaxWait = origMax
+		startVMTaskPoll = origTaskPoll
+		startVMTaskMaxWait = origTaskMax
+		startVMStartRetry = origRetry
+		startVMStartRetryMaxWait = origRetryMax
+	})
+
+	const rid = uint(111)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/tasks/lifecycle/active/vm/111", func(w http.ResponseWriter, _ *http.Request) {
+		resp := map[string]interface{}{"status": "success", "data": nil}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/start/111", func(w http.ResponseWriter, _ *http.Request) {
+		resp := map[string]interface{}{"status": "success", "data": nil}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	// Always return Crashed (6).
+	mux.HandleFunc("/api/vm/simple/111", func(w http.ResponseWriter, _ *http.Request) {
+		resp := client.APIResponse[client.SimpleVM]{
+			Status: "success",
+			Data:   client.SimpleVM{RID: rid, State: client.DomainStateCrashed},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/logs/111", func(w http.ResponseWriter, _ *http.Request) {
+		type logsData struct {
+			Logs string `json:"logs"`
+		}
+		resp := map[string]interface{}{"status": "success", "data": logsData{Logs: "crashed!"}}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := &Config{SylveURL: srv.URL, TLSSkipVerify: true}
+	state := newTestState(t)
+	state.Put("vm_rid", rid)
+	state.Put("vm_id", rid)
+
+	step := &StepStartVM{Config: cfg}
+	if step.Run(context.Background(), state) != multistep.ActionHalt {
+		t.Fatal("expected ActionHalt on crash detection (state=Crashed)")
+	}
+}
+
+func TestStepStartVM_NoStateDetection(t *testing.T) {
+	origPoll := startVMPollInterval
+	origMax := startVMMaxWait
+	origTaskPoll := startVMTaskPoll
+	origTaskMax := startVMTaskMaxWait
+	origRetry := startVMStartRetry
+	origRetryMax := startVMStartRetryMaxWait
+	startVMPollInterval = 2 * time.Millisecond
+	startVMMaxWait = 2 * time.Second
+	startVMTaskPoll = 2 * time.Millisecond
+	startVMTaskMaxWait = 10 * time.Millisecond
+	startVMStartRetry = 2 * time.Millisecond
+	startVMStartRetryMaxWait = 10 * time.Millisecond
+	t.Cleanup(func() {
+		startVMPollInterval = origPoll
+		startVMMaxWait = origMax
+		startVMTaskPoll = origTaskPoll
+		startVMTaskMaxWait = origTaskMax
+		startVMStartRetry = origRetry
+		startVMStartRetryMaxWait = origRetryMax
+	})
+
+	const rid = uint(112)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/tasks/lifecycle/active/vm/112", func(w http.ResponseWriter, _ *http.Request) {
+		resp := map[string]interface{}{"status": "success", "data": nil}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/start/112", func(w http.ResponseWriter, _ *http.Request) {
+		resp := map[string]interface{}{"status": "success", "data": nil}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	// Always return NoState (0) — triggers after 10 polls.
+	mux.HandleFunc("/api/vm/simple/112", func(w http.ResponseWriter, _ *http.Request) {
+		resp := client.APIResponse[client.SimpleVM]{
+			Status: "success",
+			Data:   client.SimpleVM{RID: rid, State: client.DomainStateNoState},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/logs/112", func(w http.ResponseWriter, _ *http.Request) {
+		type logsData struct {
+			Logs string `json:"logs"`
+		}
+		resp := map[string]interface{}{"status": "success", "data": logsData{Logs: "no domain"}}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := &Config{SylveURL: srv.URL, TLSSkipVerify: true}
+	state := newTestState(t)
+	state.Put("vm_rid", rid)
+	state.Put("vm_id", rid)
+
+	step := &StepStartVM{Config: cfg}
+	if step.Run(context.Background(), state) != multistep.ActionHalt {
+		t.Fatal("expected ActionHalt on NoState detection")
+	}
+}
+
+func TestStepStartVM_CrashCounterResets(t *testing.T) {
+	// Test that a single Shutoff poll followed by a non-Shutoff poll resets the
+	// crash counter, and the VM eventually starts.
+	origPoll := startVMPollInterval
+	origMax := startVMMaxWait
+	origTaskPoll := startVMTaskPoll
+	origTaskMax := startVMTaskMaxWait
+	origRetry := startVMStartRetry
+	origRetryMax := startVMStartRetryMaxWait
+	startVMPollInterval = 5 * time.Millisecond
+	startVMMaxWait = 2 * time.Second
+	startVMTaskPoll = 5 * time.Millisecond
+	startVMTaskMaxWait = 20 * time.Millisecond
+	startVMStartRetry = 5 * time.Millisecond
+	startVMStartRetryMaxWait = 20 * time.Millisecond
+	t.Cleanup(func() {
+		startVMPollInterval = origPoll
+		startVMMaxWait = origMax
+		startVMTaskPoll = origTaskPoll
+		startVMTaskMaxWait = origTaskMax
+		startVMStartRetry = origRetry
+		startVMStartRetryMaxWait = origRetryMax
+	})
+
+	const rid = uint(113)
+	var pollN atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/tasks/lifecycle/active/vm/113", func(w http.ResponseWriter, _ *http.Request) {
+		resp := map[string]interface{}{"status": "success", "data": nil}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/start/113", func(w http.ResponseWriter, _ *http.Request) {
+		resp := map[string]interface{}{"status": "success", "data": nil}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	// Pattern: Shutoff, Shutoff, NoState(resets crash counter), Running.
+	mux.HandleFunc("/api/vm/simple/113", func(w http.ResponseWriter, _ *http.Request) {
+		n := pollN.Add(1)
+		var st client.DomainState
+		switch {
+		case n <= 2:
+			st = client.DomainStateShutoff
+		case n == 3:
+			st = client.DomainStateNoState
+		default:
+			st = client.DomainStateRunning
+		}
+		resp := client.APIResponse[client.SimpleVM]{
+			Status: "success",
+			Data:   client.SimpleVM{RID: rid, State: st},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/logs/113", func(w http.ResponseWriter, _ *http.Request) {
+		resp := map[string]interface{}{"status": "success", "data": map[string]string{}}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := &Config{SylveURL: srv.URL, TLSSkipVerify: true}
+	state := newTestState(t)
+	state.Put("vm_rid", rid)
+	state.Put("vm_id", rid)
+
+	step := &StepStartVM{Config: cfg}
+	if step.Run(context.Background(), state) != multistep.ActionContinue {
+		t.Fatalf("expected ActionContinue; error=%v", state.Get("error"))
+	}
+}

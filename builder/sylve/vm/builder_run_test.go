@@ -47,9 +47,10 @@ func TestBuilder_Run_Success(t *testing.T) {
 
 	b := &Builder{}
 	_, _, err := b.Prepare(map[string]interface{}{
-		"vm_name":      "my-vm",
-		"sylve_token":  "tok",
-		"communicator": "none",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_token":     "tok",
+		"communicator":    "none",
 	})
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
@@ -73,9 +74,10 @@ func TestBuilder_Run_HaltedByStep(t *testing.T) {
 
 	b := &Builder{}
 	_, _, err := b.Prepare(map[string]interface{}{
-		"vm_name":      "my-vm",
-		"sylve_token":  "tok",
-		"communicator": "none",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_token":     "tok",
+		"communicator":    "none",
 	})
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)

@@ -74,11 +74,10 @@ type FlatConfig struct {
 	SylveAuthType             *string           `mapstructure:"sylve_auth_type" cty:"sylve_auth_type" hcl:"sylve_auth_type"`
 	SylveAPILoginTimeout      *string           `mapstructure:"sylve_api_login_timeout" cty:"sylve_api_login_timeout" hcl:"sylve_api_login_timeout"`
 	TLSSkipVerify             *bool             `mapstructure:"tls_skip_verify" cty:"tls_skip_verify" hcl:"tls_skip_verify"`
+	SourceTemplate            *string           `mapstructure:"source_template" cty:"source_template" hcl:"source_template"`
 	VMName                    *string           `mapstructure:"vm_name" cty:"vm_name" hcl:"vm_name"`
-	PreserveOriginal          *bool             `mapstructure:"preserve_original" cty:"preserve_original" hcl:"preserve_original"`
 	ShutdownCommand           *string           `mapstructure:"shutdown_command" cty:"shutdown_command" hcl:"shutdown_command"`
 	KeepRegistered            *bool             `mapstructure:"keep_registered" cty:"keep_registered" hcl:"keep_registered"`
-	Destroy                   *bool             `mapstructure:"destroy" cty:"destroy" hcl:"destroy"`
 	BootWait                  *string           `mapstructure:"boot_wait" cty:"boot_wait" hcl:"boot_wait"`
 }
 
@@ -158,11 +157,10 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"sylve_auth_type":              &hcldec.AttrSpec{Name: "sylve_auth_type", Type: cty.String, Required: false},
 		"sylve_api_login_timeout":      &hcldec.AttrSpec{Name: "sylve_api_login_timeout", Type: cty.String, Required: false},
 		"tls_skip_verify":              &hcldec.AttrSpec{Name: "tls_skip_verify", Type: cty.Bool, Required: false},
+		"source_template":              &hcldec.AttrSpec{Name: "source_template", Type: cty.String, Required: false},
 		"vm_name":                      &hcldec.AttrSpec{Name: "vm_name", Type: cty.String, Required: false},
-		"preserve_original":            &hcldec.AttrSpec{Name: "preserve_original", Type: cty.Bool, Required: false},
 		"shutdown_command":             &hcldec.AttrSpec{Name: "shutdown_command", Type: cty.String, Required: false},
 		"keep_registered":              &hcldec.AttrSpec{Name: "keep_registered", Type: cty.Bool, Required: false},
-		"destroy":                      &hcldec.AttrSpec{Name: "destroy", Type: cty.Bool, Required: false},
 		"boot_wait":                    &hcldec.AttrSpec{Name: "boot_wait", Type: cty.String, Required: false},
 	}
 	return s

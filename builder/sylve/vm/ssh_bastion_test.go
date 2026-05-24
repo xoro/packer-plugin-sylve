@@ -29,10 +29,11 @@ import (
 
 func vmMinimalValid() map[string]interface{} {
 	return map[string]interface{}{
-		"vm_name":      "my-vm",
-		"sylve_token":  "tok",
-		"communicator": "ssh",
-		"ssh_username": "root",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_token":     "tok",
+		"communicator":    "ssh",
+		"ssh_username":    "root",
 	}
 }
 
@@ -650,16 +651,14 @@ func TestConfig_Prepare_SkipsAutoBastionForCommunicatorNone(t *testing.T) {
 	}
 }
 
-func TestConfig_Prepare_DestroyTrueKeepRegisteredFalse(t *testing.T) {
+func TestConfig_Prepare_KeepRegisteredDefaultFalse(t *testing.T) {
 	raw := vmMinimalValid()
-	raw["destroy"] = true
-	raw["keep_registered"] = false
 	c, err := prepareVM(raw)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
-	if !c.Destroy || !c.KeepRegistered {
-		t.Fatalf("destroy=%v keep_registered=%v", c.Destroy, c.KeepRegistered)
+	if c.KeepRegistered {
+		t.Fatalf("keep_registered=%v, want false", c.KeepRegistered)
 	}
 }
 

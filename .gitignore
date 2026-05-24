@@ -11,6 +11,7 @@ release-artifacts/
 # Go
 *.test
 *.out
+cover.html
 vendor/
 .go-version
 
@@ -22,6 +23,8 @@ examples/sylve-iso/hello-alpine
 examples/sylve-iso/hello-debian
 examples/sylve-iso/hello-freebsd
 examples/sylve-iso/hello-openbsd
+examples/hello-*
+examples/hello-*.exe
 
 # Packer debug logs (may contain JWTs from Sylve API responses)
 packer.log

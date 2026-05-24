@@ -32,11 +32,12 @@ func TestBuilder_Run_EnsureAuthFailure(t *testing.T) {
 
 	b := &Builder{}
 	_, _, err := b.Prepare(map[string]interface{}{
-		"vm_name":        "my-vm",
-		"sylve_url":      srv.URL,
-		"sylve_user":     "alice",
-		"sylve_password": "wrong",
-		"communicator":   "none",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_url":       srv.URL,
+		"sylve_user":      "alice",
+		"sylve_password":  "wrong",
+		"communicator":    "none",
 	})
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
@@ -374,11 +375,11 @@ func TestStepDeleteVM_Destroy_APIErrorContinues(t *testing.T) {
 	srv := httptest.NewTLSServer(mux)
 	t.Cleanup(srv.Close)
 
-	cfg := &Config{SylveURL: srv.URL, TLSSkipVerify: true, Destroy: true}
+	cfg := &Config{SylveURL: srv.URL, TLSSkipVerify: true, KeepRegistered: false}
 	state := newTestState(t)
 	state.Put("vm_rid", uint(12))
 
-	step := &sylvecommon.StepDeleteVM{SylveURL: cfg.SylveURL, SylveToken: cfg.SylveToken, TLSSkipVerify: cfg.TLSSkipVerify, Destroy: cfg.Destroy}
+	step := &sylvecommon.StepDeleteVM{SylveURL: cfg.SylveURL, SylveToken: cfg.SylveToken, TLSSkipVerify: cfg.TLSSkipVerify, Destroy: !cfg.KeepRegistered}
 	if step.Run(context.Background(), state) != multistep.ActionContinue {
 		t.Fatalf("delete errors should not halt; err=%v", state.Get("error"))
 	}
@@ -388,34 +389,10 @@ func TestStepDeleteVM_Destroy_APIErrorContinues(t *testing.T) {
 	step.Cleanup(state)
 }
 
-func TestStepSnapshotDisks_Cleanup_DisabledNoOp(t *testing.T) {
-	cfg := &Config{PreserveOriginal: false}
-	state := newTestState(t)
-	state.Put("snapshot_guids", map[string]string{"g": "s"})
-	(&StepSnapshotDisks{Config: cfg}).Cleanup(state)
-}
-
-func TestStepSnapshotDisks_Cleanup_RollbackErrorContinues(t *testing.T) {
-	routes := map[string]http.HandlerFunc{
-		"POST /api/zfs/datasets/snapshot/rollback": func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "rollback failed", http.StatusConflict)
-		},
-	}
-	cfg, cleanup := serveSnapshot(t, routes)
-	defer cleanup()
-
-	state := newTestState(t)
-	state.Put("ui", packer.TestUi(t))
-	state.Put("snapshot_guids", map[string]string{"ds": "snap-guid"})
-	(&StepSnapshotDisks{Config: cfg}).Cleanup(state)
-}
-
 func TestAllSteps_CleanupNoOps_Extended(t *testing.T) {
 	state := newTestState(t)
 	cfg := &Config{}
-	(&StepFindVM{Config: cfg}).Cleanup(state)
 	(&StepShutdown{Config: cfg}).Cleanup(state)
-	(&StepSnapshotDisks{Config: cfg}).Cleanup(state)
 }
 
 func TestConfig_Prepare_LocalHostDebugPath(t *testing.T) {
@@ -459,11 +436,12 @@ func TestBuilder_Run_WithLoginCleanup(t *testing.T) {
 
 	b := &Builder{}
 	_, _, err := b.Prepare(map[string]interface{}{
-		"vm_name":        "my-vm",
-		"sylve_url":      srv.URL,
-		"sylve_user":     "alice",
-		"sylve_password": "secret",
-		"communicator":   "none",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_url":       srv.URL,
+		"sylve_user":      "alice",
+		"sylve_password":  "secret",
+		"communicator":    "none",
 	})
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
@@ -475,26 +453,6 @@ func TestBuilder_Run_WithLoginCleanup(t *testing.T) {
 	}
 	if art == nil {
 		t.Fatal("nil artifact")
-	}
-}
-
-func TestStepSnapshotDisks_SkipsStorageWithoutDataset(t *testing.T) {
-	cfg := &Config{SylveURL: "http://127.0.0.1:0", SylveToken: "tok", PreserveOriginal: true}
-	storages := []client.VMStorage{
-		{Type: client.VMStorageTypeZVol, Name: "vol-no-dataset"},
-	}
-	ui := packer.TestUi(t)
-	state := new(multistep.BasicStateBag)
-	state.Put("ui", ui)
-	state.Put("vm_storages", storages)
-
-	step := &StepSnapshotDisks{Config: cfg}
-	if step.Run(context.Background(), state) != multistep.ActionContinue {
-		t.Fatalf("err=%v", state.Get("error"))
-	}
-	guids, _ := state.Get("snapshot_guids").(map[string]string)
-	if len(guids) != 0 {
-		t.Fatalf("expected no snapshots, got %v", guids)
 	}
 }
 
@@ -520,11 +478,11 @@ func TestStepDiscoverIP_EmptyMAC_ErrorMessage(t *testing.T) {
 	}
 }
 
-func TestStepDeleteVM_DestroyFalse_Skip(t *testing.T) {
-	cfg := &Config{Destroy: false}
+func TestStepDeleteVM_KeepRegisteredTrue_Skip(t *testing.T) {
+	cfg := &Config{KeepRegistered: true}
 	state := newTestState(t)
 	state.Put("vm_rid", uint(99))
-	if (&sylvecommon.StepDeleteVM{Destroy: cfg.Destroy}).Run(context.Background(), state) != multistep.ActionContinue {
+	if (&sylvecommon.StepDeleteVM{Destroy: !cfg.KeepRegistered}).Run(context.Background(), state) != multistep.ActionContinue {
 		t.Fatal("expected continue")
 	}
 }
@@ -534,9 +492,10 @@ func TestConfig_Prepare_DefaultSylveURLWhenUnset(t *testing.T) {
 	t.Setenv("SYLVE_TOKEN", "tok")
 	c := &Config{}
 	_, _, err := c.Prepare(map[string]interface{}{
-		"vm_name":      "vm1",
-		"communicator": "ssh",
-		"ssh_username": "root",
+		"vm_name":         "vm1",
+		"source_template": "base-template",
+		"communicator":    "ssh",
+		"ssh_username":    "root",
 	})
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
@@ -548,13 +507,6 @@ func TestConfig_Prepare_DefaultSylveURLWhenUnset(t *testing.T) {
 
 func TestStepStartVM_Cleanup_NoVMRID(t *testing.T) {
 	(&StepStartVM{Config: &Config{}}).Cleanup(newTestState(t))
-}
-
-func TestStepSnapshotDisks_Cleanup_EmptyGuids(t *testing.T) {
-	cfg := &Config{PreserveOriginal: true}
-	state := newTestState(t)
-	state.Put("ui", packer.TestUi(t))
-	(&StepSnapshotDisks{Config: cfg}).Cleanup(state)
 }
 
 func TestStepWinRMTunnel_ForwardConns_AcceptAfterClose(t *testing.T) {

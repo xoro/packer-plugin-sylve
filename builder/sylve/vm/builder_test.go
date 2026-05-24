@@ -15,10 +15,14 @@ func TestBuilder_ConfigSpec_NotNil(t *testing.T) {
 }
 
 // TestBuilder_Prepare_RequiresVMName verifies that Prepare rejects a config with
-// no vm_name — the builder requires an existing VM to work with.
+// no vm_name — the builder requires a name for the created VM.
 func TestBuilder_Prepare_RequiresVMName(t *testing.T) {
 	b := &Builder{}
-	_, _, err := b.Prepare()
+	_, _, err := b.Prepare(map[string]interface{}{
+		"source_template": "base",
+		"sylve_token":     "tok",
+		"communicator":    "none",
+	})
 	if err == nil {
 		t.Fatal("Prepare() expected error when vm_name is missing, got nil")
 	}
@@ -29,11 +33,12 @@ func TestBuilder_Prepare_RequiresVMName(t *testing.T) {
 func TestBuilder_Prepare_ValidMinimal(t *testing.T) {
 	b := &Builder{}
 	_, _, err := b.Prepare(map[string]interface{}{
-		"vm_name":      "my-vm",
-		"sylve_token":  "tok",
-		"communicator": "ssh",
-		"ssh_username": "admin",
-		"ssh_password": "pass",
+		"vm_name":         "my-vm",
+		"source_template": "base-template",
+		"sylve_token":     "tok",
+		"communicator":    "ssh",
+		"ssh_username":    "admin",
+		"ssh_password":    "pass",
 	})
 	if err != nil {
 		t.Fatalf("Prepare() returned unexpected error: %v", err)
@@ -43,11 +48,12 @@ func TestBuilder_Prepare_ValidMinimal(t *testing.T) {
 func TestBuilder_Prepare_InvalidBootWait(t *testing.T) {
 	b := &Builder{}
 	_, _, err := b.Prepare(map[string]interface{}{
-		"vm_name":      "vm1",
-		"sylve_token":  "tok",
-		"communicator": "ssh",
-		"ssh_username": "root",
-		"boot_wait":    "forty-two-bats",
+		"vm_name":         "vm1",
+		"source_template": "base",
+		"sylve_token":     "tok",
+		"communicator":    "ssh",
+		"ssh_username":    "root",
+		"boot_wait":       "forty-two-bats",
 	})
 	if err == nil {
 		t.Fatal("expected Prepare error for invalid boot_wait")
@@ -62,10 +68,11 @@ func TestBuilder_Prepare_SYLVE_HOST_BuildsDefaultURL(t *testing.T) {
 
 	b := &Builder{}
 	_, _, err := b.Prepare(map[string]interface{}{
-		"vm_name":      "vm1",
-		"communicator": "ssh",
-		"ssh_username": "u",
-		"ssh_password": "p",
+		"vm_name":         "vm1",
+		"source_template": "base",
+		"communicator":    "ssh",
+		"ssh_username":    "u",
+		"ssh_password":    "p",
 	})
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
@@ -88,10 +95,11 @@ func TestConfig_Prepare_MalformedSylveURL_SkipsAutoBastion(t *testing.T) {
 	t.Setenv("SYLVE_TOKEN", "tok")
 	c := &Config{}
 	_, _, err := c.Prepare(map[string]interface{}{
-		"vm_name":      "vm1",
-		"sylve_url":    "http://%ZZZ", // url.Parse error; bastion block must not panic
-		"communicator": "ssh",
-		"ssh_username": "root",
+		"vm_name":         "vm1",
+		"source_template": "base",
+		"sylve_url":       "http://%ZZZ", // url.Parse error; bastion block must not panic
+		"communicator":    "ssh",
+		"ssh_username":    "root",
 	})
 	if err != nil {
 		t.Fatalf("unexpected Prepare error: %v", err)
