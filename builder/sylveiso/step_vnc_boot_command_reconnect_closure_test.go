@@ -198,8 +198,16 @@ func TestStepVNCBootCommand_ReconnectClosure_ContextCancelledOnDialFailure(t *te
 // RFB completes, then a subsequent attempt gets a full minimal RFB server.
 func TestStepVNCBootCommand_ReconnectClosure_VNCHandshakeRetriesBeforeSuccess(t *testing.T) {
 	orig := vncReconnectRetryDelay
+	origDeadline := vncStepPerConnDeadline
+	origDialRetry := vncStepDialRetryDelay
 	vncReconnectRetryDelay = 1 * time.Millisecond
-	t.Cleanup(func() { vncReconnectRetryDelay = orig })
+	vncStepPerConnDeadline = 200 * time.Millisecond
+	vncStepDialRetryDelay = 1 * time.Millisecond
+	t.Cleanup(func() {
+		vncReconnectRetryDelay = orig
+		vncStepPerConnDeadline = origDeadline
+		vncStepDialRetryDelay = origDialRetry
+	})
 
 	rfbLn, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

@@ -965,11 +965,23 @@ func TestStepStartVM_ContextCancelDuringStartRetries(t *testing.T) {
 func TestStepStartVM_DomainBlocked_CountedAsStarted(t *testing.T) {
 	origPoll := startVMPollInterval
 	origMax := startVMMaxWait
+	origTaskPoll := startVMTaskPoll
+	origTaskMax := startVMTaskMaxWait
+	origRetry := startVMStartRetry
+	origRetryMax := startVMStartRetryMaxWait
 	startVMPollInterval = 10 * time.Millisecond
 	startVMMaxWait = 2 * time.Second
+	startVMTaskPoll = 5 * time.Millisecond
+	startVMTaskMaxWait = 30 * time.Millisecond
+	startVMStartRetry = 5 * time.Millisecond
+	startVMStartRetryMaxWait = 30 * time.Millisecond
 	t.Cleanup(func() {
 		startVMPollInterval = origPoll
 		startVMMaxWait = origMax
+		startVMTaskPoll = origTaskPoll
+		startVMTaskMaxWait = origTaskMax
+		startVMStartRetry = origRetry
+		startVMStartRetryMaxWait = origRetryMax
 	})
 
 	rid := uint(81)

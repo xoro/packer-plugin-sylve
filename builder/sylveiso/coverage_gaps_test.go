@@ -484,8 +484,16 @@ func TestStepVNCBootCommand_ReconnectDialHTTPStatusLogged(t *testing.T) {
 
 func TestStepVNCBootCommand_ReconnectHandshakeContextCancelled(t *testing.T) {
 	orig := vncReconnectRetryDelay
+	origDeadline := vncStepPerConnDeadline
+	origDialRetry := vncStepDialRetryDelay
 	vncReconnectRetryDelay = 1 * time.Millisecond
-	t.Cleanup(func() { vncReconnectRetryDelay = orig })
+	vncStepPerConnDeadline = 200 * time.Millisecond
+	vncStepDialRetryDelay = 1 * time.Millisecond
+	t.Cleanup(func() {
+		vncReconnectRetryDelay = orig
+		vncStepPerConnDeadline = origDeadline
+		vncStepDialRetryDelay = origDialRetry
+	})
 
 	rfbLn, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

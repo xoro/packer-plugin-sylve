@@ -33,4 +33,4 @@ jobs:
           go-version-file: go.mod
 
       - name: Run unit tests
-        run: go test --race --count=1 ./...
+        run: ./bin/run_unit_tests.sh

@@ -47,6 +47,13 @@ if ! go test -race -coverprofile=coverage.out -covermode=atomic ./...; then
 fi
 printf "%b %b INFO:  ==>> SUCCEEDED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
 
+# Go 1.26 may emit coverage entries with truncated module paths for generated
+# files (missing "github.com/" prefix). Filter them out so go tool cover
+# produces a valid total line.
+module_prefix="$(grep '^module ' go.mod | awk '{print $2}')"
+grep -E "^mode:|^${module_prefix}" coverage.out >coverage.out.tmp
+mv coverage.out.tmp coverage.out
+
 step_text="Print coverage summary"
 printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
 coverage_output="$(go tool cover -func=coverage.out)"
