@@ -3,6 +3,35 @@
 
 # Changelog
 
+## [0.1.8] - 2026-05-24
+
+### Features
+
+- _(builder)_ Replace find-vm and snapshot-disks with create-from-template workflow
+
+### Bug Fixes
+
+- _(builder)_ Work around Sylve NIC enable=false preventing DHCP lease
+- _(builder)_ Fix VNC auth negotiation and view server memory leak
+- _(builder)_ Disable SSH keep-alive to prevent x/crypto drain loop CPU spin
+
+### Other
+
+- Add windows/amd64 and windows/arm64 to GoReleaser build matrix
+
+### Refactor
+
+- Migrate coding rules from .cursor/rules to .github/instructions
+- _(builder)_ Restructure into builder/sylve/{common,iso,vm,jail}
+
+### Testing
+
+- Fix slow tests and add coverage for NIC fix paths
+
+### Miscellaneous Tasks
+
+- Rename format_code.sh to format_files.sh and add YAML formatter
+
 ## [0.1.7] - 2026-05-23
 
 ### Features
