@@ -163,6 +163,31 @@ shutoffLoop:
 		}
 	}
 
+	// Fix the VM NIC before starting the installed OS. Sylve's CreateVM sets
+	// enable=false on all new network records. When enable=false, CreateVmXML
+	// skips the NIC, so the stored libvirt XML never contains a TAP interface
+	// and bhyve starts with no NIC — the guest receives no DHCP lease.
+	//
+	// PUT /vm/network/update cannot fix this: it requires the NIC to already
+	// be present in the stored XML before it can modify it.
+	//
+	// Instead: detach the stale record (Sylve silently deletes the DB row when
+	// the NIC is not in the stored XML, returning success), then re-attach
+	// (NetworkAttach unconditionally writes the NIC into the stored XML via
+	// DomainDefineXML regardless of the enable flag). DomainCreate then picks
+	// up the NIC element on the next start and the guest obtains its DHCP lease.
+	if netID, ok := state.Get("vm_network_id").(uint); ok && netID != 0 {
+		macObjectID, _ := state.Get("vm_mac_object_id").(*uint)
+		ui.Say(fmt.Sprintf("Re-attaching VM network id=%d to fix NIC enable=false...", netID))
+		if detachErr := c.DetachVMNetwork(rid, netID); detachErr != nil {
+			ui.Say(fmt.Sprintf("Warning: network detach id=%d: %s", netID, detachErr))
+		} else if attachErr := c.ReattachVMNetwork(rid, s.Config.SwitchName, s.Config.SwitchEmulationType, macObjectID); attachErr != nil {
+			ui.Say(fmt.Sprintf("Warning: network reattach rid=%d: %s", rid, attachErr))
+		} else {
+			log.Printf("[DEBUG] Re-attached VM NIC rid=%d switch=%q emulation=%q before installed-OS boot", rid, s.Config.SwitchName, s.Config.SwitchEmulationType)
+		}
+	}
+
 	// Sylve may still report 409 lifecycle_task_in_progress briefly after the
 	// task poll clears, so retry until it accepts the start or we time out.
 	startDeadline := time.Now().Add(restartAfterInstallStartMaxWait)

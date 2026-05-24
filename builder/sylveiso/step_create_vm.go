@@ -240,8 +240,16 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 	}
 
 	var mac string
+	var vmNetworkID uint
+	var vmMacObjectID *uint
 	if len(vm.Networks) > 0 {
 		mac = vm.Networks[0].MACAddress()
+		vmNetworkID = vm.Networks[0].ID
+		// MacID is the MAC object FK used to preserve the same MAC address when
+		// re-attaching the NIC in StepRestartAfterInstall. If nil, Sylve assigns
+		// a fresh random MAC on reattach, which breaks StepDiscoverIP because it
+		// polls for the MAC stored in vm_mac.
+		vmMacObjectID = vm.Networks[0].MacID
 	}
 
 	// Sylve assigns BootOrder=0 to the ISO and BootOrder=1 to the zvol.
@@ -280,6 +288,32 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 		vm = updated
 	}
 
+	// Sylve creates VM networks with enable=false, causing CreateVmXML to omit
+	// the NIC from the stored libvirt XML. The VM then starts without a TAP
+	// device and the guest receives no DHCP lease — even on the first
+	// (installer) boot. Fix this before StepStartVM runs: detach the stale DB
+	// record (Sylve silently succeeds when the NIC is absent from the XML),
+	// then re-attach via NetworkAttach, which always writes the NIC element
+	// into the stored domain XML via DomainDefineXML.
+	if vmNetworkID != 0 {
+		ui.Say(fmt.Sprintf("Fixing VM NIC (enable=false): detach id=%d then reattach...", vmNetworkID))
+		if detachErr := c.DetachVMNetwork(vm.RID, vmNetworkID); detachErr != nil {
+			ui.Say(fmt.Sprintf("Warning: NIC detach id=%d: %s", vmNetworkID, detachErr))
+		} else if attachErr := c.ReattachVMNetwork(vm.RID, s.Config.SwitchName, s.Config.SwitchEmulationType, vmMacObjectID); attachErr != nil {
+			ui.Say(fmt.Sprintf("Warning: NIC reattach rid=%d: %s", vm.RID, attachErr))
+		} else {
+			log.Printf("[DEBUG] Fixed VM NIC rid=%d switch=%q emulation=%q before first boot",
+				vm.RID, s.Config.SwitchName, s.Config.SwitchEmulationType)
+			// Re-read the network record — reattach creates a new DB row with a
+			// new ID. StepRestartAfterInstall needs this ID for the second
+			// detach+reattach before the installed-OS boot.
+			if refreshed, rErr := c.GetVMByRID(vm.RID); rErr == nil && len(refreshed.Networks) > 0 {
+				vmNetworkID = refreshed.Networks[0].ID
+				vmMacObjectID = refreshed.Networks[0].MacID
+			}
+		}
+	}
+
 	s.vmID = vm.ID
 	s.vmRID = vm.RID
 	state.Put("vm_id", vm.ID)
@@ -289,6 +323,11 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 	// when destroy=true.
 	state.Put("vm_rid_final", vm.RID)
 	state.Put("vm_mac", mac)
+	// vm_network_id and vm_mac_object_id are read by StepRestartAfterInstall
+	// to detach+reattach the NIC again before the installed-OS boot (same fix,
+	// applied a second time because the installed-OS boot also needs the NIC).
+	state.Put("vm_network_id", vmNetworkID)
+	state.Put("vm_mac_object_id", vmMacObjectID)
 
 	// Stash the ISO storage so StepRestartAfterInstall can disable it before
 	// the second start.  UEFI NVRAM persists across VM starts and stores the

@@ -44,6 +44,7 @@ type VMNetworkObjectEntry struct {
 // VMNetwork is a network interface attached to a VM.
 type VMNetwork struct {
 	ID        uint             `json:"id"`
+	MacID     *uint            `json:"macId"`
 	MAC       string           `json:"mac"`
 	MacObj    *VMNetworkObject `json:"macObj"`
 	Emulation string           `json:"emulation"`
@@ -257,6 +258,60 @@ func (c *Client) UpdateStorageBootOrder(storageID int, name, emulation string, b
 	var resp APIResponse[interface{}]
 	if err := c.put("/vm/storage/update", req, &resp); err != nil {
 		return fmt.Errorf("UpdateStorageBootOrder id=%d: %w", storageID, err)
+	}
+	return nil
+}
+
+// NetworkDetachRequest is the body sent to POST /api/vm/network/detach.
+type NetworkDetachRequest struct {
+	RID       uint `json:"rid"`
+	NetworkID uint `json:"networkId"`
+}
+
+// DetachVMNetwork calls POST /api/vm/network/detach to remove a NIC database
+// record from the VM. When the NIC was created with enable=false it is never
+// added to the stored libvirt XML; Sylve's NetworkDetach handler detects this
+// and deletes the database record only (without touching the XML), returning
+// success. This makes it safe to call for any network record, including those
+// that were never written to the stored XML.
+func (c *Client) DetachVMNetwork(rid, networkID uint) error {
+	req := NetworkDetachRequest{RID: rid, NetworkID: networkID}
+	var resp APIResponse[interface{}]
+	if err := c.post("/vm/network/detach", req, &resp); err != nil {
+		return fmt.Errorf("DetachVMNetwork rid=%d networkID=%d: %w", rid, networkID, err)
+	}
+	return nil
+}
+
+// NetworkAttachRequest is the body sent to POST /api/vm/network/attach.
+type NetworkAttachRequest struct {
+	RID        uint   `json:"rid"`
+	SwitchName string `json:"switchName"`
+	Emulation  string `json:"emulation"`
+	MacID      *uint  `json:"macId,omitempty"`
+}
+
+// ReattachVMNetwork calls POST /api/vm/network/attach to add a fresh NIC
+// record to the VM and write the NIC element into the stored libvirt XML.
+// Unlike PUT /vm/network/update, NetworkAttach unconditionally writes the NIC
+// into the stored domain XML regardless of the enable flag. The next
+// DomainCreate (vm start) therefore includes the virtio-net device in the
+// bhyve command line and the guest receives a DHCP lease as expected.
+//
+// macObjectID may be nil; if omitted Sylve generates a new random MAC address.
+// Pass the original MAC object ID to preserve the MAC address that was
+// resolved into vm_mac during VM creation, so StepDiscoverIP finds the correct
+// DHCP lease.
+func (c *Client) ReattachVMNetwork(rid uint, switchName, emulation string, macObjectID *uint) error {
+	req := NetworkAttachRequest{
+		RID:        rid,
+		SwitchName: switchName,
+		Emulation:  emulation,
+		MacID:      macObjectID,
+	}
+	var resp APIResponse[interface{}]
+	if err := c.post("/vm/network/attach", req, &resp); err != nil {
+		return fmt.Errorf("ReattachVMNetwork rid=%d switch=%q: %w", rid, switchName, err)
 	}
 	return nil
 }

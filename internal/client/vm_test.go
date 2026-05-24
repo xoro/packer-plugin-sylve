@@ -571,3 +571,86 @@ func TestFindVMByName_ListError(t *testing.T) {
 		t.Fatal("expected error when list fails, got nil")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// DetachVMNetwork
+// ---------------------------------------------------------------------------
+
+func TestDetachVMNetwork_Success(t *testing.T) {
+	var gotReq NetworkDetachRequest
+	c, srv := serveVM(t, "/api/vm/network/detach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotReq)
+		okJSON(w, APIResponse[interface{}]{Status: "ok"})
+	})
+	defer srv.Close()
+
+	if err := c.DetachVMNetwork(5, 12); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotReq.RID != 5 || gotReq.NetworkID != 12 {
+		t.Errorf("unexpected request body: RID=%d NetworkID=%d, want RID=5 NetworkID=12",
+			gotReq.RID, gotReq.NetworkID)
+	}
+}
+
+func TestDetachVMNetwork_Error(t *testing.T) {
+	c, srv := serveVM(t, "/api/vm/network/detach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	})
+	defer srv.Close()
+
+	if err := c.DetachVMNetwork(1, 2); err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ReattachVMNetwork
+// ---------------------------------------------------------------------------
+
+func TestReattachVMNetwork_Success(t *testing.T) {
+	var gotReq NetworkAttachRequest
+	c, srv := serveVM(t, "/api/vm/network/attach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotReq)
+		okJSON(w, APIResponse[interface{}]{Status: "ok"})
+	})
+	defer srv.Close()
+
+	macID := uint(99)
+	if err := c.ReattachVMNetwork(5, "PackerSwitch", "virtio-net", &macID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotReq.RID != 5 || gotReq.SwitchName != "PackerSwitch" || gotReq.Emulation != "virtio-net" {
+		t.Errorf("unexpected request: %+v", gotReq)
+	}
+	if gotReq.MacID == nil || *gotReq.MacID != 99 {
+		t.Errorf("MacID = %v, want 99", gotReq.MacID)
+	}
+}
+
+func TestReattachVMNetwork_NilMacID(t *testing.T) {
+	var gotReq NetworkAttachRequest
+	c, srv := serveVM(t, "/api/vm/network/attach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotReq)
+		okJSON(w, APIResponse[interface{}]{Status: "ok"})
+	})
+	defer srv.Close()
+
+	if err := c.ReattachVMNetwork(7, "mySwitch", "e1000", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotReq.MacID != nil {
+		t.Errorf("MacID = %v, want nil (omitted)", gotReq.MacID)
+	}
+}
+
+func TestReattachVMNetwork_Error(t *testing.T) {
+	c, srv := serveVM(t, "/api/vm/network/attach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+	})
+	defer srv.Close()
+
+	if err := c.ReattachVMNetwork(1, "sw", "virtio-net", nil); err == nil {
+		t.Fatal("expected error for 400 response, got nil")
+	}
+}
