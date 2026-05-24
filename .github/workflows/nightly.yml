@@ -3,6 +3,8 @@
 
 # Nightly: scheduled quality checks and acceptance tests on a self-hosted
 # macOS runner with access to a live Sylve instance.
+# The schedule trigger always runs on the default branch (main), so every
+# checkout step explicitly targets the development branch.
 
 name: nightly
 
@@ -11,6 +13,11 @@ on:
     # Run at 20:00 UTC every night
     - cron: "0 20 * * *"
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch to test"
+        required: false
+        default: "development"
 
 permissions:
   contents: read
@@ -24,6 +31,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'development' }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -58,6 +67,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'development' }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
