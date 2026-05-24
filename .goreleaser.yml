@@ -5,7 +5,7 @@
 # https://github.com/hashicorp/packer-plugin-scaffolding ).
 #
 # Builds: darwin/arm64, freebsd/amd64, freebsd/arm64, linux/amd64, linux/arm64,
-# openbsd/amd64, openbsd/arm64, windows/amd64, windows/arm64.
+# openbsd/amd64, openbsd/arm64.
 #
 # Tag releases as vX.Y.Z (HashiCorp style). {{ .Version }} is SemVer without "v".
 #
@@ -42,7 +42,6 @@ builds:
       - freebsd
       - linux
       - openbsd
-      - windows
     goarch:
       - amd64
       - arm64
