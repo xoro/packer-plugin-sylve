@@ -157,7 +157,7 @@ fi
 build_args="${build_args} -only=sylve-iso.${os_name}"
 
 # shellcheck disable=SC2086
-if ! packer build ${build_args} .; then
+if ! packer build -timestamp-ui ${build_args} .; then
     printf "%b %b ERROR: ==>> FAILED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
     exit 6
 fi

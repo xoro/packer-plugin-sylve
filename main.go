@@ -17,9 +17,9 @@ import (
 	"io"
 	"os"
 
-	sylveiso "github.com/xoro/packer-plugin-sylve/builder/sylveiso"
-	sylvejail "github.com/xoro/packer-plugin-sylve/builder/sylvejail"
-	sylvevm "github.com/xoro/packer-plugin-sylve/builder/sylvevm"
+	sylveiso "github.com/xoro/packer-plugin-sylve/builder/sylve/iso"
+	sylvejail "github.com/xoro/packer-plugin-sylve/builder/sylve/jail"
+	sylvevm "github.com/xoro/packer-plugin-sylve/builder/sylve/vm"
 	sylveds "github.com/xoro/packer-plugin-sylve/datasource/sylve"
 	sylvepp "github.com/xoro/packer-plugin-sylve/post-processor/sylve"
 	sylveprov "github.com/xoro/packer-plugin-sylve/provisioner/sylve"
