@@ -26,7 +26,7 @@
 # code formatting across the entire codebase.
 #
 # Usage:
-#   ./bin/format_code.sh
+#   ./bin/format_files.sh
 #
 # Dependencies:
 #   - markdown-toc (for Markdown table of contents)

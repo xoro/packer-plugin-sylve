@@ -105,7 +105,7 @@ print_status "Running pre-commit quality checks..."
 print_status "Step 1/3: Checking code formatting..."
 if ! "${root_dir}/bin/run_format_checks.sh"; then
     print_status "ERROR: Code formatting check failed"
-    print_status "Please run './bin/format_code.sh' to fix formatting issues"
+    print_status "Please run './bin/format_files.sh' to fix formatting issues"
     exit 1
 fi
 print_status "SUCCESS: Code formatting check passed"

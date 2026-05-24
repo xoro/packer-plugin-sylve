@@ -18,7 +18,7 @@ All quality scripts live in `bin/`:
 
 | Script                                    | Purpose                                                            |
 | ----------------------------------------- | ------------------------------------------------------------------ |
-| `bin/format_code.sh`                      | Apply formatting to all file types (PRIMARY)                       |
+| `bin/format_files.sh`                     | Apply formatting to all file types (PRIMARY)                       |
 | `bin/run_format_checks.sh`                | Verify formatting is correct (read-only)                           |
 | `bin/run_linter_checks.sh`                | Run all linters (staticcheck, shellcheck, etc.)                    |
 | `bin/run_unit_tests.sh`                   | Run Go unit tests with coverage                                    |
@@ -47,7 +47,7 @@ All quality scripts live in `bin/`:
 
 #### High Priority (Run Before Commits)
 
-1. `bin/format_code.sh` — apply formatting
+1. `bin/format_files.sh` — apply formatting
 2. `bin/run_format_checks.sh` — verify formatting
 3. `bin/run_linter_checks.sh` — code quality
 4. `go test ./...` — unit tests
@@ -64,7 +64,7 @@ All quality scripts live in `bin/`:
 
 ## Formatting
 
-### Primary Formatter: `bin/format_code.sh`
+### Primary Formatter: `bin/format_files.sh`
 
 This script formats ALL file types:
 
@@ -76,7 +76,7 @@ This script formats ALL file types:
 - JSON: `prettier` (via treefmt)
 - C/H: `clang-format` (via treefmt)
 
-**Always run `bin/format_code.sh` when formatting is needed.**
+**Always run `bin/format_files.sh` when formatting is needed.**
 
 ### Format Verification: `bin/run_format_checks.sh`
 
@@ -88,7 +88,7 @@ Also verifies `make -n build` and `bmake -n build` are valid.
 
 ```bash
 # If run_format_checks.sh fails:
-./bin/format_code.sh
+./bin/format_files.sh
 ./bin/run_format_checks.sh
 # Repeat until clean
 ```

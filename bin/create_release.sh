@@ -38,7 +38,7 @@
 #
 #   --dry-run      Print actions only; no file or git changes
 #   --no-push      Skip git push (commit and tag locally only; no GitHub Release)
-#   --skip-checks  Skip ./bin/format_code.sh, go test, ./bin/run_linter_checks.sh
+#   --skip-checks  Skip ./bin/format_files.sh, go test, ./bin/run_linter_checks.sh
 #   --branch NAME  Require current branch to be NAME (default: main)
 #
 # Typical release (from repo root, on main, clean tree):
@@ -212,8 +212,8 @@ rm -f "${_changelog_tmp}" "${_version_tmp}"
 if [ "${skip_checks}" -eq 0 ]; then
     step_text="Run format, unit tests, and linters"
     printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
-    if ! "${repo_root}/bin/format_code.sh"; then
-        printf "%b %b ERROR: ==>> FAILED: format_code.sh\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+    if ! "${repo_root}/bin/format_files.sh"; then
+        printf "%b %b ERROR: ==>> FAILED: format_files.sh\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
         exit 3
     fi
     if ! go test ./...; then

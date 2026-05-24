@@ -67,7 +67,7 @@ printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${scrip
 if ! treefmt --fail-on-change --verbose; then
     printf "\n%b %b ERROR: ==>> FAILED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
     printf "%b %b ERROR: Format inconsistencies detected in the files listed above\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
-    printf "%b %b INFO:  Run './bin/format_code.sh' to fix formatting issues\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
+    printf "%b %b INFO:  Run './bin/format_files.sh' to fix formatting issues\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}"
     exit 1
 fi
 printf "%b %b INFO:  ==>> SUCCEEDED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"

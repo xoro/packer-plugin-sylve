@@ -10,7 +10,7 @@
 # Runs the full local quality pipeline in order: verify formatting (read-only),
 # lint, unit tests (with coverage), secret scanning, and security scanners
 # (SBOM + vulnerability scanners). Does not apply formatting; run
-# bin/format_code.sh separately when you want to auto-fix style. See
+# bin/format_files.sh separately when you want to auto-fix style. See
 # .github/instructions/test-scripts.instructions.md for the script inventory.
 #
 # The script performs the following tasks:
@@ -20,7 +20,7 @@
 # 4. Run gitleaks secret scanning (bin/run_leak_checks.sh)
 # 5. Run security scanners (bin/run_security_scanners.sh; includes SBOM)
 #
-# Not included: bin/format_code.sh (writes files), bin/install_git_hooks.sh,
+# Not included: bin/format_files.sh (writes files), bin/install_git_hooks.sh,
 # bin/run_example.sh (live Sylve), bin/update_go_mods.sh (dependency maintenance).
 #
 # Usage:

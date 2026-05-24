@@ -58,7 +58,7 @@ The following rules apply to this project. Refer to each file for detailed stand
 Before every commit, run:
 
 ```bash
-./bin/format_code.sh          # Apply formatting
+./bin/format_files.sh          # Apply formatting
 ./bin/run_format_checks.sh    # Verify formatting is correct
 ./bin/run_linter_checks.sh    # Run all linters
 go test ./...                 # Run unit tests

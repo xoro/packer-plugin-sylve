@@ -197,7 +197,7 @@ New test cases must have descriptive names that explain the scenario being teste
 ### Before Considering a Change Complete
 
 1. **Run format and lint checks** using `./bin/run_format_checks.sh` and `./bin/run_linter_checks.sh`
-   - If format check fails, run `./bin/format_code.sh` and re-run the checks
+   - If format check fails, run `./bin/format_files.sh` and re-run the checks
 2. **Run unit tests** using `go test ./...` or `./bin/run_unit_tests.sh`
 3. **Check for compile errors or warnings** introduced by the change
 4. **Verify all callers** of changed functions still work correctly

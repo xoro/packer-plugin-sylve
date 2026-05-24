@@ -25,6 +25,8 @@ excludes = [
   "*.pkrtpl",
   # Go module file (managed by go toolchain)
   "go.mod",
+  # Makefile has no widely-used formatter (validated by make/bmake parse checks)
+  "Makefile",
 ]
 
 [formatter.gofmt]
@@ -55,6 +57,11 @@ options = ["--style=LLVM", "-i"]
 [formatter.prettier-markdown]
 command = "prettier"
 includes = ["*.md", "*.mdx"]
+options = ["--write"]
+
+[formatter.prettier-yaml]
+command = "prettier"
+includes = ["*.yml", "*.yaml"]
 options = ["--write"]
 
 [formatter.prettier-json]

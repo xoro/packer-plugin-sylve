@@ -36,7 +36,7 @@ practices across all development activities.
 3. Run quality checks before committing:
 
 ```bash
-./bin/format_code.sh          # Apply formatting
+./bin/format_files.sh          # Apply formatting
 ./bin/run_format_checks.sh    # Verify formatting
 ./bin/run_linter_checks.sh    # Lint checks
 go test ./...                 # Unit tests
@@ -59,7 +59,7 @@ go test ./...                 # Unit tests
 push:
 
 ```bash
-./bin/format_code.sh
+./bin/format_files.sh
 ./bin/run_format_checks.sh
 ./bin/run_linter_checks.sh
 go test ./...
@@ -73,7 +73,7 @@ go test ./...
 3. Prepends a new section to `CHANGELOG.md` using **git-cliff** (`--unreleased`) when `git-cliff` is in `PATH`, else a
    minimal stub
 4. Writes the new `Version` into `version/version.go`
-5. Runs `format_code.sh`, `go test ./...`, and `run_linter_checks.sh` unless `--skip-checks` is passed
+5. Runs `format_files.sh`, `go test ./...`, and `run_linter_checks.sh` unless `--skip-checks` is passed
 6. Commits with `chore(release): X.Y.Z` and creates an annotated tag **`vX.Y.Z`**
 7. With **`--push`**, runs `git push origin main` and `git push origin vX.Y.Z` (omit `--push` to push manually)
 

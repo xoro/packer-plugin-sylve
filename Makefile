@@ -19,7 +19,7 @@ build:
 	@go build -o ${BINARY}
 
 fmt:
-	@bin/format_code.sh
+	@bin/format_files.sh
 
 fmt-check:
 	@bin/run_format_checks.sh

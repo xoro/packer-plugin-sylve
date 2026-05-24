@@ -115,12 +115,12 @@ change.**
 4. **BSD-2-Clause License**: All source files must have license headers
 5. **Development Branch**: All work happens on `development`, never commit directly to `main`
 6. **POSIX Shell**: All shell scripts use `#!/bin/sh`, never `#!/bin/bash`
-7. **Format Before Commit**: Run `./bin/format_code.sh` before every commit
+7. **Format Before Commit**: Run `./bin/format_files.sh` before every commit
 
 ### Quality Checks (Run Before Every Commit)
 
 ```bash
-./bin/format_code.sh          # Apply formatting to all file types
+./bin/format_files.sh          # Apply formatting to all file types
 ./bin/run_format_checks.sh    # Verify formatting is correct
 ./bin/run_linter_checks.sh    # Run all linters
 go test ./...                 # Run unit tests

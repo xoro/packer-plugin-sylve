@@ -221,7 +221,7 @@ go test ./...
 PACKER_ACC=1 SYLVE_URL=https://host:8181 SYLVE_TOKEN=<token> go test -count 1 -v ./... -timeout=120m
 
 # Format code
-./bin/format_code.sh
+./bin/format_files.sh
 
 # Run linters
 ./bin/run_linter_checks.sh

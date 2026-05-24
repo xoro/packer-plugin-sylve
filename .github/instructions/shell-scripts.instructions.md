@@ -179,4 +179,4 @@ All shell scripts must pass:
 - `shellcheck --shell=sh` — no warnings or errors
 - `shfmt --posix --indent 4` — POSIX-compliant, 4-space indentation
 
-Run `./bin/format_code.sh` to apply formatting automatically.
+Run `./bin/format_files.sh` to apply formatting automatically.

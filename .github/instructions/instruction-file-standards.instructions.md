@@ -102,4 +102,4 @@ When adding a new instruction file:
 1. Create the file in `.github/instructions/`
 2. Add a reference to `.github/copilot-instructions.md`
 3. Add a row to the rule files table in `AGENTS.md`
-4. Run `./bin/format_code.sh` and `./bin/run_linter_checks.sh`
+4. Run `./bin/format_files.sh` and `./bin/run_linter_checks.sh`
