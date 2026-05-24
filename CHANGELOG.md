@@ -3,6 +3,16 @@
 
 # Changelog
 
+## [0.1.11] - 2026-05-24
+
+### Bug Fixes
+
+- _(iso)_ Eliminate data race in drainServerMsgCh tests
+
+### Miscellaneous Tasks
+
+- _(release)_ Add dedicated test job before goreleaser
+
 ## [0.1.10] - 2026-05-24
 
 ### Bug Fixes
