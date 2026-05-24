@@ -63,7 +63,7 @@ push:
 ./bin/run_format_checks.sh
 ./bin/run_linter_checks.sh
 go test ./...
-./bin/create_release.sh --push
+./bin/create_release.sh
 ```
 
 **What `bin/create_release.sh` does:**
@@ -75,7 +75,7 @@ go test ./...
 4. Writes the new `Version` into `version/version.go`
 5. Runs `format_files.sh`, `go test ./...`, and `run_linter_checks.sh` unless `--skip-checks` is passed
 6. Commits with `chore(release): X.Y.Z` and creates an annotated tag **`vX.Y.Z`**
-7. With **`--push`**, runs `git push origin main` and `git push origin vX.Y.Z` (omit `--push` to push manually)
+7. Pushes `git push origin main` and `git push origin vX.Y.Z` by default (use `--no-push` to skip)
 
 For tags **after** `v0.1.0` / `v0.1.1`, **GoReleaser** in GitHub Actions (`.github/workflows/release.yml`) builds and attaches
 artifacts. Use **`--dry-run`** to print the next version without changing files.
