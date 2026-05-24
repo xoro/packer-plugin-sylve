@@ -487,17 +487,12 @@ func (ss *vncViewServer) runFramebufferPoller(ctx context.Context, serverMsgCh <
 }
 
 // drainServerMsgCh discards VNC server messages from ch until ch is closed or
-// 30 seconds elapse. It is called after runFramebufferPollerInner exits so the
-// go-vnc reader goroutine can unblock from a full-channel send, detect the
-// closed upstream connection, and terminate — freeing the ~800 MB of FBU pixel
-// data that would otherwise be held live by the blocked goroutine.
-//
-// drainServerMsgChTimeout is exposed as a variable so tests can shorten the
-// deadline without waiting 30 real seconds.
-var drainServerMsgChTimeout = 30 * time.Second
-
-func drainServerMsgCh(ch <-chan vnc.ServerMessage) {
-	deadline := time.After(drainServerMsgChTimeout)
+// the given timeout elapses. It is called after runFramebufferPollerInner exits
+// so the go-vnc reader goroutine can unblock from a full-channel send, detect
+// the closed upstream connection, and terminate — freeing the ~800 MB of FBU
+// pixel data that would otherwise be held live by the blocked goroutine.
+func drainServerMsgCh(ch <-chan vnc.ServerMessage, timeout time.Duration) {
+	deadline := time.After(timeout)
 	for {
 		select {
 		case _, ok := <-ch:
@@ -523,7 +518,7 @@ func (ss *vncViewServer) runFramebufferPollerInner(ctx context.Context, serverMs
 	// goroutine stuck on a channel operation, so the goroutine (and the ~800 MB
 	// of FBU pixel data buffered in the channel) remain live indefinitely,
 	// causing the GC to spin at 800%+ CPU during the provisioning phase.
-	defer func() { go drainServerMsgCh(serverMsgCh) }()
+	defer func() { go drainServerMsgCh(serverMsgCh, 30*time.Second) }()
 
 	ss.mu.RLock()
 	conn := ss.conn

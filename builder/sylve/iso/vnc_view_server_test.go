@@ -535,15 +535,11 @@ func TestVNCViewServer_StartReturnsPort(t *testing.T) {
 // TestDrainServerMsgCh_Timeout verifies that drainServerMsgCh returns when the
 // deadline elapses and the channel is still open (no messages arriving).
 func TestDrainServerMsgCh_Timeout(t *testing.T) {
-	orig := drainServerMsgChTimeout
-	drainServerMsgChTimeout = 10 * time.Millisecond
-	defer func() { drainServerMsgChTimeout = orig }()
-
 	// Channel stays open with no messages — forces the deadline path.
 	ch := make(chan vnc.ServerMessage)
 	done := make(chan struct{})
 	go func() {
-		drainServerMsgCh(ch)
+		drainServerMsgCh(ch, 10*time.Millisecond)
 		close(done)
 	}()
 	select {
@@ -557,14 +553,10 @@ func TestDrainServerMsgCh_Timeout(t *testing.T) {
 // TestDrainServerMsgCh_ChannelClosed verifies that drainServerMsgCh returns
 // when the channel is closed (covering the ok==false branch deterministically).
 func TestDrainServerMsgCh_ChannelClosed(t *testing.T) {
-	orig := drainServerMsgChTimeout
-	drainServerMsgChTimeout = 5 * time.Second
-	defer func() { drainServerMsgChTimeout = orig }()
-
 	ch := make(chan vnc.ServerMessage)
 	done := make(chan struct{})
 	go func() {
-		drainServerMsgCh(ch)
+		drainServerMsgCh(ch, 5*time.Second)
 		close(done)
 	}()
 	// Close the channel so drainServerMsgCh exits via the ok==false path.
@@ -580,10 +572,6 @@ func TestDrainServerMsgCh_ChannelClosed(t *testing.T) {
 // TestDrainServerMsgCh_DrainsMessages verifies that drainServerMsgCh consumes
 // messages before the channel is closed (covering the ok==true branch).
 func TestDrainServerMsgCh_DrainsMessages(t *testing.T) {
-	orig := drainServerMsgChTimeout
-	drainServerMsgChTimeout = 5 * time.Second
-	defer func() { drainServerMsgChTimeout = orig }()
-
 	ch := make(chan vnc.ServerMessage, 3)
 	// Send some messages then close.
 	ch <- &vnc.FramebufferUpdateMessage{}
@@ -592,7 +580,7 @@ func TestDrainServerMsgCh_DrainsMessages(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		drainServerMsgCh(ch)
+		drainServerMsgCh(ch, 5*time.Second)
 		close(done)
 	}()
 	select {

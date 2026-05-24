@@ -41,7 +41,9 @@ minimum_coverage="99.5"
 
 step_text="Run Go unit tests with race detector and coverage"
 printf "\n%b %b INFO:  ==>> STEP: %b:\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
-if ! go test -race -coverprofile=coverage.out -covermode=atomic ./...; then
+# halt_on_error=1: stop immediately on the first data race and print a full
+# goroutine stack trace so the root cause is visible in CI output.
+if ! GORACE="halt_on_error=1" go test -race -coverprofile=coverage.out -covermode=atomic ./...; then
     printf "%b %b ERROR: ==>> FAILED: %b\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${script_name}" "${step_text}"
     exit 1
 fi
