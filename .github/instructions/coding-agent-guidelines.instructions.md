@@ -1,7 +1,5 @@
 ---
-description: "Guidelines for coding agents (LLMs) creating or modifying code"
-auto_attach: ["**/*"]
-alwaysApply: true
+applyTo: "**"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->
@@ -22,7 +20,7 @@ This rule is intentionally language-agnostic so it can be reused across projects
 1. **Read and understand the existing code** surrounding the change before modifying anything
 2. **Identify the patterns and conventions** used in the file and module being changed
 3. **Check AGENTS.md** in the project root for project-specific commands, conventions, and gotchas
-4. **Read all referenced rule files** from `.cursor/rules/` that apply to the file type being modified
+4. **Read all referenced rule files** from `.github/instructions/` that apply to the file type being modified
 5. **Understand the purpose** of the code being changed, not just its syntax
 
 ### Planning
@@ -215,7 +213,7 @@ New test cases must have descriptive names that explain the scenario being teste
 
 ## Commit Standards
 
-1. **Follow the project's commit message format** (see `git-commit.mdc`)
+1. **Follow the project's commit message format** (see `git-commit.instructions.md`)
 2. **One logical change per commit** - do not bundle unrelated fixes
 3. **Reference the source** of the change in the commit body (e.g., issue number, user request)
 4. **Run all pre-commit checks** before finalising the commit

@@ -52,7 +52,7 @@ PACKER_ACC=1 go test -count 1 -v ./... -timeout=120m
 - **Manual GitHub uploads (v0.1.x)**: see [`docs/GITHUB_RELEASES.md`](docs/GITHUB_RELEASES.md); **branch protection**:
   [`docs/BRANCH_PROTECTION.md`](docs/BRANCH_PROTECTION.md).
 - **Patch release from `main`**: [`bin/create_release.sh`](bin/create_release.sh) (bumps PATCH, updates `CHANGELOG.md`,
-  commits, tags `vX.Y.Z`, pushes; see [development-workflow](.cursor/rules/development-workflow.mdc)).
+  commits, tags `vX.Y.Z`, pushes; see [development-workflow](.github/instructions/development-workflow.instructions.md)).
 
 Acceptance tests require `SYLVE_URL` and `SYLVE_TOKEN` to be set (see Environment Variables).
 
@@ -86,30 +86,30 @@ Write all template examples in HCL2 (`.pkr.hcl`). Legacy JSON templates are seco
 
 ## Coding Standards and Rules
 
-All coding standards, best practices, and development guidelines are defined in the `.cursor/rules/`
+All coding standards, best practices, and development guidelines are defined in the `.github/instructions/`
 directory. **Every coding agent must read and follow the relevant rule files before making any
 change.**
 
 ### Rule Files Reference
 
-| Rule File                                     | Purpose                                                         |
-| --------------------------------------------- | --------------------------------------------------------------- |
-| `.cursor/rules/coding-agent-guidelines.mdc`   | **Mandatory**: guidelines for agents creating or modifying code |
-| `.cursor/rules/general-coding-standards.mdc`  | Universal standards for all file types (no emojis, plain ASCII) |
-| `.cursor/rules/git-commit.mdc`                | Conventional commit format and approval workflow                |
-| `.cursor/rules/license-header.mdc`            | BSD-2-Clause header requirements per file type                  |
-| `.cursor/rules/shell-scripts.mdc`             | POSIX shell, step pattern, log format                           |
-| `.cursor/rules/development-workflow.mdc`      | Branch strategy, release process                                |
-| `.cursor/rules/test-scripts.mdc`              | Script inventory, retry workflow                                |
-| `.cursor/rules/command-line-options.mdc`      | Long-form CLI options                                           |
-| `.cursor/rules/command-output.mdc`            | Show complete unfiltered output                                 |
-| `.cursor/rules/terminal.mdc`                  | Terminal usage                                                  |
-| `.cursor/rules/vulnerability-remediation.mdc` | Pen test remediation workflow                                   |
-| `.cursor/rules/cursor-rule-standards.mdc`     | Standards for the rule files themselves                         |
+| Rule File                                                         | Purpose                                                         |
+| ----------------------------------------------------------------- | --------------------------------------------------------------- |
+| `.github/instructions/coding-agent-guidelines.instructions.md`    | **Mandatory**: guidelines for agents creating or modifying code |
+| `.github/instructions/general-coding-standards.instructions.md`   | Universal standards for all file types (no emojis, plain ASCII) |
+| `.github/instructions/git-commit.instructions.md`                 | Conventional commit format and approval workflow                |
+| `.github/instructions/license-header.instructions.md`             | BSD-2-Clause header requirements per file type                  |
+| `.github/instructions/shell-scripts.instructions.md`              | POSIX shell, step pattern, log format                           |
+| `.github/instructions/development-workflow.instructions.md`       | Branch strategy, release process                                |
+| `.github/instructions/test-scripts.instructions.md`               | Script inventory, retry workflow                                |
+| `.github/instructions/command-line-options.instructions.md`       | Long-form CLI options                                           |
+| `.github/instructions/command-output.instructions.md`             | Show complete unfiltered output                                 |
+| `.github/instructions/terminal.instructions.md`                   | Terminal usage                                                  |
+| `.github/instructions/vulnerability-remediation.instructions.md`  | Pen test remediation workflow                                   |
+| `.github/instructions/instruction-file-standards.instructions.md` | Standards for instruction files themselves                      |
 
 ### Key Principles
 
-1. **No Emojis**: Never use emojis in code, config, or data files (only in `.md`/`.mdc` docs)
+1. **No Emojis**: Never use emojis in code, config, or data files (only in `.md` docs)
 2. **Conventional Commits**: All commits must follow the conventional commit format
 3. **Long-Form Options**: Use `--verbose` not `-v` in shell scripts and documentation
 4. **BSD-2-Clause License**: All source files must have license headers

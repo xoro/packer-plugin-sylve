@@ -1,7 +1,5 @@
 ---
-description: "Command output standards — show complete unfiltered output"
-auto_attach: ["**/*.sh", "**/Makefile"]
-alwaysApply: true
+applyTo: "**/*.sh,**/Makefile"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->

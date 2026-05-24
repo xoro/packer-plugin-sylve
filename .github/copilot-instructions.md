@@ -5,7 +5,7 @@
 
 ## Overview
 
-All coding standards, best practices, and development guidelines for this project are defined in the `.cursor/rules/` directory. **Follow all rules defined in those files.**
+All coding standards, best practices, and development guidelines for this project are defined in the `.github/instructions/` directory. **Follow all rules defined in those files.**
 
 ## Rule Files Reference
 
@@ -13,40 +13,40 @@ The following rules apply to this project. Refer to each file for detailed stand
 
 ### Universal Standards
 
-- **`.cursor/rules/general-coding-standards.mdc`** - Universal coding standards for ALL file types
+- **`.github/instructions/general-coding-standards.instructions.md`** - Universal coding standards for ALL file types
   - CRITICAL: NO emojis or visual indicators in source code, config, or data files
-  - Plain ASCII text only (emojis allowed ONLY in .md/.mdc documentation files)
+  - Plain ASCII text only (emojis allowed ONLY in .md documentation files)
 
 ### Language and File-Type Rules
 
-- **`.cursor/rules/shell-scripts.mdc`** - Shell script development standards (POSIX, step pattern, log format)
-- **`.cursor/rules/license-header.mdc`** - BSD-2-Clause license header requirements for all source files
+- **`.github/instructions/shell-scripts.instructions.md`** - Shell script development standards (POSIX, step pattern, log format)
+- **`.github/instructions/license-header.instructions.md`** - BSD-2-Clause license header requirements for all source files
 
 ### Development Workflow
 
-- **`.cursor/rules/development-workflow.mdc`** - Git branch strategy and release process
-- **`.cursor/rules/git-commit.mdc`** - Conventional commit message format and workflow
-- **`.cursor/rules/test-scripts.mdc`** - Quality script inventory, execution standards, and retry workflow
+- **`.github/instructions/development-workflow.instructions.md`** - Git branch strategy and release process
+- **`.github/instructions/git-commit.instructions.md`** - Conventional commit message format and workflow
+- **`.github/instructions/test-scripts.instructions.md`** - Quality script inventory, execution standards, and retry workflow
 
 ### Code Standards
 
-- **`.cursor/rules/command-line-options.mdc`** - Use long-form CLI options
-- **`.cursor/rules/command-output.mdc`** - Show complete unfiltered command output
-- **`.cursor/rules/terminal.mdc`** - Terminal usage standards
+- **`.github/instructions/command-line-options.instructions.md`** - Use long-form CLI options
+- **`.github/instructions/command-output.instructions.md`** - Show complete unfiltered command output
+- **`.github/instructions/terminal.instructions.md`** - Terminal usage standards
 
 ### Agent Behaviour
 
-- **`.cursor/rules/coding-agent-guidelines.mdc`** - Mandatory guidelines for coding agents creating or modifying code
-- **`.cursor/rules/cursor-rule-standards.mdc`** - Standards for rule files themselves
+- **`.github/instructions/coding-agent-guidelines.instructions.md`** - Mandatory guidelines for coding agents creating or modifying code
+- **`.github/instructions/instruction-file-standards.instructions.md`** - Standards for instruction files themselves
 
 ### Security
 
-- **`.cursor/rules/vulnerability-remediation.mdc`** - Penetration test vulnerability remediation workflow
+- **`.github/instructions/vulnerability-remediation.instructions.md`** - Penetration test vulnerability remediation workflow
 
 ## Key Principles
 
 1. **No Duplication**: These rules are the single source of truth
-2. **No Emojis**: Never use emojis in code, config, or data files (only in .md/.mdc docs)
+2. **No Emojis**: Never use emojis in code, config, or data files (only in .md docs)
 3. **Conventional Commits**: All commits must follow the conventional commit format
 4. **Long-Form Options**: Use `--verbose` not `-v` in shell scripts and documentation
 5. **BSD-2-Clause License**: All source files must have license headers
@@ -66,7 +66,7 @@ go test ./...                 # Run unit tests
 
 ## Important: Read the Rule Files
 
-When working on specific file types or tasks, **read the corresponding rule file** from `.cursor/rules/` for complete, detailed standards.
+When working on specific file types or tasks, **read the corresponding rule file** from `.github/instructions/` for complete, detailed standards.
 
 ## AGENTS.md
 

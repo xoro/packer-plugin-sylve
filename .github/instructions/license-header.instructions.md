@@ -1,21 +1,5 @@
 ---
-description: "BSD-2-Clause license header requirements for all source files"
-auto_attach:
-  [
-    "**/*.go",
-    "**/*.sh",
-    "**/*.hcl",
-    "**/*.pkr.hcl",
-    "**/*.toml",
-    "**/*.md",
-    "**/*.mdx",
-    "**/*.yml",
-    "**/*.yaml",
-    "**/*.json",
-    "**/*.c",
-    "**/*.h",
-  ]
-alwaysApply: true
+applyTo: "**"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->

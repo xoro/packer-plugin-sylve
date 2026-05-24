@@ -9,7 +9,7 @@ Optional hardening after the repository is public and CI is stable. Configure in
 ## Suggested settings for `main`
 
 - **Require a pull request before merging** — forces review and keeps direct pushes off `main` (aligns with
-  `.cursor/rules/development-workflow.mdc`).
+  `.github/instructions/development-workflow.instructions.md`).
 - **Require status checks to pass** — enable the checks from `.github/workflows/ci.yml` (e.g. the `test` job)
   so `go test` must pass before merge.
 - **Require branches to be up to date before merging** — reduces merge skew.

@@ -1,7 +1,5 @@
 ---
-description: "Shell script development standards and best practices"
-auto_attach: ["**/*.sh", "**/Makefile", "**/bin/*"]
-alwaysApply: true
+applyTo: "**/*.sh,**/Makefile,**/bin/*"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->
@@ -15,7 +13,7 @@ This document defines the standards for shell script development in the packer-p
 
 ## License Header Requirements
 
-All shell scripts MUST include the BSD-2-Clause license header followed by a documentation block. See `license-header.mdc` for the full format.
+All shell scripts MUST include the BSD-2-Clause license header followed by a documentation block. See `license-header.instructions.md` for the full format.
 
 ## Output and User Interface
 
@@ -162,7 +160,7 @@ script_name="$(basename "${0}")"
 
 ### Long-Form Command Options
 
-Use long-form options in all scripts. See `command-line-options.mdc`.
+Use long-form options in all scripts. See `command-line-options.instructions.md`.
 
 ```bash
 # CORRECT

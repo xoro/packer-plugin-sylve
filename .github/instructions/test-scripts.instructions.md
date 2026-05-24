@@ -1,7 +1,5 @@
 ---
-description: "Test and quality script execution standards and inventory"
-auto_attach: ["**/bin/*.sh", "**/Makefile"]
-alwaysApply: true
+applyTo: "**/bin/*.sh,**/bin/*.ps1"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->

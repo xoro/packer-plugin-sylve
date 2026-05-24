@@ -1,7 +1,5 @@
 ---
-description: "Long command line options, documentation, and aliasing standards"
-auto_attach: ["**/*.sh", "**/Makefile", "**/*.md"]
-alwaysApply: true
+applyTo: "**/*.sh,**/*.md,**/Makefile"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->

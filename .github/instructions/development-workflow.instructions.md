@@ -1,7 +1,5 @@
 ---
-description: "Development workflow and branch management"
-auto_attach: ["**/.git/**", "**/go.mod", "**/Makefile"]
-alwaysApply: true
+applyTo: "**"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->
@@ -34,7 +32,7 @@ practices across all development activities.
 ### Development Process
 
 1. All changes are made on the `development` branch
-2. Use conventional commit messages for all commits (see `git-commit.mdc`)
+2. Use conventional commit messages for all commits (see `git-commit.instructions.md`)
 3. Run quality checks before committing:
 
 ```bash

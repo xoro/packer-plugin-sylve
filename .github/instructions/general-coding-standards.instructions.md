@@ -1,11 +1,9 @@
 ---
-description: "General coding standards and best practices for all file types"
-auto_attach: ["**/*"]
-alwaysApply: true
+applyTo: "**"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->
-<!-- Copyright (c) 2026, Timo Pallath (timo@pallach.de). -->
+<!-- Copyright (c) 2026, Timo Pallach (timo@pallach.de). -->
 
 # General Coding Standards
 
@@ -31,7 +29,7 @@ This rule defines universal coding standards that apply to ALL file types in the
 - **Plain ASCII text only** for maximum compatibility
 - **Descriptive text** instead of visual indicators
 - **Standard punctuation** (., !, ?, :, etc.)
-- **Markdown files (.md, .mdc)** - emojis are allowed ONLY in these files
+- **Markdown files (.md)** - emojis are allowed ONLY in these files
 
 #### Why This Rule Exists:
 
@@ -47,7 +45,7 @@ This rule defines universal coding standards that apply to ALL file types in the
 
 - **NO emojis** in output messages, status indicators, or comments
 - **Use descriptive text** like "SUCCESS:", "ERROR:", "WARNING:" instead
-- **Follow shell-scripts.mdc** for additional shell-specific standards
+- **Follow `shell-scripts.instructions.md`** for additional shell-specific standards
 
 ### Configuration Files (.json, .yaml, .yml, .toml, .hcl)
 
@@ -60,7 +58,7 @@ This rule defines universal coding standards that apply to ALL file types in the
 - **NO emojis** in code comments, strings, or documentation
 - **Use descriptive text** for all human-readable content
 
-### Documentation Files (.md, .mdc, .mdx)
+### Documentation Files (.md, .mdx)
 
 - **Emojis ARE ALLOWED** in markdown files
 - **Use sparingly** and purposefully

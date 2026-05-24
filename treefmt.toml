@@ -57,11 +57,6 @@ command = "prettier"
 includes = ["*.md", "*.mdx"]
 options = ["--write"]
 
-[formatter.prettier-mdc]
-command = "prettier"
-includes = ["*.mdc"]
-options = ["--write", "--parser", "markdown"]
-
 [formatter.prettier-json]
 command = "prettier"
 includes = ["*.json"]

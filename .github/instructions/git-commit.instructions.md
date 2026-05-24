@@ -1,7 +1,5 @@
 ---
-description: "Git commit message standards and workflow"
-auto_attach: ["**/.git/**", "**/git*"]
-alwaysApply: true
+applyTo: "**"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->

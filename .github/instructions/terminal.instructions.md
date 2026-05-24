@@ -1,7 +1,5 @@
 ---
-description: "Terminal usage and command execution standards"
-auto_attach: ["**/*.sh", "**/Makefile"]
-alwaysApply: true
+applyTo: "**"
 ---
 
 <!-- SPDX-License-Identifier: BSD-2-Clause -->
@@ -14,7 +12,7 @@ alwaysApply: true
 - **ALWAYS execute commands in the integrated terminal within the chat window**
 - **NEVER open new separate terminal windows or external terminals**
 - **Always show command output directly in the chat window**
-- Use long-form command line options when available (see `command-line-options.mdc`)
+- Use long-form command line options when available (see `command-line-options.instructions.md`)
 - **NEVER use commands that might spawn new terminal processes or windows**
 
 ## Command Examples

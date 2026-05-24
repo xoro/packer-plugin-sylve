@@ -11,7 +11,7 @@
 # lint, unit tests (with coverage), secret scanning, and security scanners
 # (SBOM + vulnerability scanners). Does not apply formatting; run
 # bin/format_code.sh separately when you want to auto-fix style. See
-# .cursor/rules/test-scripts.mdc for the script inventory.
+# .github/instructions/test-scripts.instructions.md for the script inventory.
 #
 # The script performs the following tasks:
 # 1. Verify formatting (bin/run_format_checks.sh)
