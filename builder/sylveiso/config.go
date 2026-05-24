@@ -460,6 +460,19 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 		}
 	}
 
+	// Workaround: disable the SDK's SSH session keep-alive. In x/crypto/ssh
+	// v0.52.0, channel.SendRequest has a drain loop that busy-spins when
+	// ch.msg is closed (after session.Close). The SDK starts a keep-alive
+	// goroutine per session; after each provisioner command finishes and the
+	// session closes, the goroutine's next SendRequest enters an infinite
+	// loop pegging a CPU core. With multiple provisioner commands this
+	// accumulates to 400%+ CPU. Setting the interval to -1 disables the
+	// goroutine entirely. TCP-level keepalive on the SSH transport and the
+	// active provisioner I/O prevent idle disconnects.
+	if c.Config.SSHKeepAliveInterval == 0 {
+		c.Config.SSHKeepAliveInterval = -1 * time.Second
+	}
+
 	// Prepare communicator config (SSH fields).
 	if commErrs := c.Config.Prepare(&c.ctx); len(commErrs) > 0 {
 		errs = packersdk.MultiErrorAppend(errs, commErrs...)
