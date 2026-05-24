@@ -3,6 +3,21 @@
 
 # Changelog
 
+## [0.1.10] - 2026-05-24
+
+### Bug Fixes
+
+- _(ci)_ Lower coverage threshold to 99.5%
+- _(ci)_ Remove Windows build targets
+
+### Documentation
+
+- Fix create_release.sh option documentation
+
+### Testing
+
+- _(iso)_ Cover drainServerMsgCh deadline timeout path
+
 ## [0.1.9] - 2026-05-24
 
 ### Bug Fixes
