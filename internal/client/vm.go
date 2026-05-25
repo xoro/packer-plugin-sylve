@@ -5,6 +5,7 @@ package client
 
 import (
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -374,10 +375,13 @@ func (c *Client) HasActiveLifecycleTask(vmID uint) (bool, error) {
 
 // DeleteVM calls DELETE /api/vm/:rid using the VM's runtime ID (RID).
 // Sylve addresses VMs by RID for all mutating operations (start, stop, delete).
+// force=false ensures Sylve performs a graceful shutdown before deletion.
 func (c *Client) DeleteVM(rid uint) error {
-	path := fmt.Sprintf("/vm/%d?deletemacs=true&deleterawdisks=true&deletevolumes=true", rid)
+	path := fmt.Sprintf("/vm/%d?deletemacs=true&deleterawdisks=true&deletevolumes=true&force=false", rid)
+	log.Printf("[DEBUG] DeleteVM: rid=%d sending DELETE /api%s", rid, path)
 	if err := c.delete(path); err != nil {
 		return fmt.Errorf("delete VM rid=%d: %w", rid, err)
 	}
+	log.Printf("[DEBUG] DeleteVM: rid=%d delete accepted by Sylve", rid)
 	return nil
 }

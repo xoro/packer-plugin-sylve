@@ -474,7 +474,7 @@ func TestHasActiveLifecycleTask_Error(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDeleteVM_Success(t *testing.T) {
-	path := fmt.Sprintf("/api/vm/%d?deletemacs=true&deleterawdisks=true&deletevolumes=true", 11)
+	path := fmt.Sprintf("/api/vm/%d?deletemacs=true&deleterawdisks=true&deletevolumes=true&force=false", 11)
 	c, srv := serveVM(t, path, http.MethodDelete, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -486,7 +486,7 @@ func TestDeleteVM_Success(t *testing.T) {
 }
 
 func TestDeleteVM_Error(t *testing.T) {
-	path := fmt.Sprintf("/api/vm/%d?deletemacs=true&deleterawdisks=true&deletevolumes=true", 11)
+	path := fmt.Sprintf("/api/vm/%d?deletemacs=true&deleterawdisks=true&deletevolumes=true&force=false", 11)
 	c, srv := serveVM(t, path, http.MethodDelete, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 	})

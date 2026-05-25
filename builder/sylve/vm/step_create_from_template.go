@@ -153,6 +153,21 @@ func (s *StepCreateFromTemplate) Cleanup(state multistep.StateBag) {
 	ui := state.Get("ui").(packersdk.Ui)
 	ui.Say(fmt.Sprintf("Cleaning up: deleting VM RID=%d (build failed)...", vmRID))
 
+	// Log the storage devices recorded at VM creation time so the pre-delete
+	// inventory can be correlated against 'zfs list' after the run.
+	if storages, ok := state.Get("vm_storages").([]client.VMStorage); ok {
+		log.Printf("[DEBUG] StepCreateFromTemplate cleanup: VM rid=%d has %d storage device(s)", vmRID, len(storages))
+		for _, st := range storages {
+			if st.Dataset != nil {
+				log.Printf("[DEBUG] StepCreateFromTemplate cleanup: storage id=%d type=%s name=%s pool=%s dataset=%s/%s",
+					st.ID, st.Type, st.Name, st.Pool, st.Dataset.Pool, st.Dataset.Name)
+			} else {
+				log.Printf("[DEBUG] StepCreateFromTemplate cleanup: storage id=%d type=%s name=%s pool=%s (no ZFS dataset record)",
+					st.ID, st.Type, st.Name, st.Pool)
+			}
+		}
+	}
+
 	c := client.New(s.Config.SylveURL, s.Config.SylveToken, s.Config.TLSSkipVerify)
 	if err := c.DeleteVM(vmRID); err != nil {
 		ui.Error(fmt.Sprintf("Cleanup: failed to delete VM RID=%d: %s", vmRID, err))

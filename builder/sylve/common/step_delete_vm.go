@@ -6,6 +6,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
@@ -34,6 +35,26 @@ func (s *StepDeleteVM) Run(_ context.Context, state multistep.StateBag) multiste
 	}
 
 	c := client.New(s.SylveURL, s.SylveToken, s.TLSSkipVerify)
+
+	// Fetch and log the VM's storage devices before deletion so the pre-delete
+	// inventory can be correlated against 'zfs list' output after the run.
+	// This is the primary diagnostic for the Sylve bug where deletevolumes=true
+	// silently fails to destroy ZFS datasets (visible with PACKER_LOG=1).
+	if vm, err := c.GetVMByRID(vmRID); err != nil {
+		log.Printf("[DEBUG] StepDeleteVM: could not fetch VM rid=%d for storage inventory: %v", vmRID, err)
+	} else {
+		log.Printf("[DEBUG] StepDeleteVM: VM rid=%d id=%d name=%q has %d storage device(s) to delete",
+			vmRID, vm.ID, vm.Name, len(vm.Storages))
+		for _, st := range vm.Storages {
+			if st.Dataset != nil {
+				log.Printf("[DEBUG] StepDeleteVM: storage id=%d type=%s name=%s pool=%s dataset=%s/%s",
+					st.ID, st.Type, st.Name, st.Pool, st.Dataset.Pool, st.Dataset.Name)
+			} else {
+				log.Printf("[DEBUG] StepDeleteVM: storage id=%d type=%s name=%s pool=%s (no ZFS dataset record)",
+					st.ID, st.Type, st.Name, st.Pool)
+			}
+		}
+	}
 
 	ui.Say(fmt.Sprintf("Deleting VM rid=%d (destroy=true)...", vmRID))
 	if err := c.DeleteVM(vmRID); err != nil {
