@@ -37,6 +37,9 @@ type vncViewServer struct {
 	connCh    chan struct{} // closed and replaced when conn changes
 	listener  net.Listener  // held open for the view server, closed by Stop()
 	stopped   bool          // set by Stop() to prevent auto-reconnect
+	stopCh    chan struct{} // closed once by Stop() to unblock reconnect loops
+	stopOnce  sync.Once     // guards the single close of stopCh
+	wg        sync.WaitGroup
 	reconnect vncReconnectFunc
 	ui        packersdk.Ui
 	clientsMu sync.Mutex
@@ -64,6 +67,7 @@ func newVNCViewServer(conn *vnc.ClientConn) *vncViewServer {
 		img:     image.NewRGBA(image.Rect(0, 0, w, h)),
 		updCh:   make(chan struct{}),
 		connCh:  make(chan struct{}),
+		stopCh:  make(chan struct{}),
 		clients: make(map[net.Conn]struct{}),
 	}
 }
@@ -142,6 +146,9 @@ func (ss *vncViewServer) WaitForNewConn(ctx context.Context, old *vnc.ClientConn
 // Call this after boot_command finishes so the Sylve WebUI can reclaim the
 // VNC port.
 func (ss *vncViewServer) Stop() {
+	// Signal any in-flight reconnect/poller goroutines to exit before they
+	// touch shared state again. Closing happens exactly once.
+	ss.stopOnce.Do(func() { close(ss.stopCh) })
 	ss.mu.Lock()
 	ss.stopped = true
 	conn := ss.conn
@@ -478,12 +485,65 @@ func (ss *vncViewServer) swapConn(ctx context.Context, newConn *vnc.ClientConn, 
 	// subsequent guest reboot is detected and triggers another reconnect.
 	// The old poller already exited after firing one reconnect goroutine,
 	// so there is no chain — only one active poller goroutine at any time.
-	go ss.runFramebufferPollerInner(ctx, serverMsgCh, true)
+	// Tracked via ss.wg so Stop()+Wait() can join it.
+	ss.startPoller(ctx, serverMsgCh)
 }
 
 // runFramebufferPoller is the public entry point that enables auto-reconnect.
 func (ss *vncViewServer) runFramebufferPoller(ctx context.Context, serverMsgCh <-chan vnc.ServerMessage) {
 	ss.runFramebufferPollerInner(ctx, serverMsgCh, true)
+}
+
+// Wait blocks until all poller and reconnect goroutines tracked by the server
+// have returned. Callers invoke it after Stop() so leaked goroutines cannot
+// outlive the build step and race on shared state (e.g. vncReconnectRetryDelay).
+func (ss *vncViewServer) Wait() {
+	ss.wg.Wait()
+}
+
+// startPoller launches a framebuffer poller in a tracked goroutine unless the
+// server has already been stopped. Tracking via ss.wg lets Wait() join it.
+func (ss *vncViewServer) startPoller(ctx context.Context, serverMsgCh <-chan vnc.ServerMessage) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	if ss.stopped {
+		return
+	}
+	ss.wg.Add(1)
+	go func() {
+		defer ss.wg.Done()
+		ss.runFramebufferPoller(ctx, serverMsgCh)
+	}()
+}
+
+// spawnReconnect launches the stored reconnect function in a tracked goroutine
+// unless the server has been stopped. Tracking via ss.wg lets Wait() join it so
+// the reconnect loop cannot outlive the build step.
+func (ss *vncViewServer) spawnReconnect(ctx context.Context) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	if ss.stopped || ss.reconnect == nil || ss.ui == nil {
+		return
+	}
+	rec := ss.reconnect
+	ui := ss.ui
+	ss.wg.Add(1)
+	go func() {
+		defer ss.wg.Done()
+		// Cancel the reconnect attempt when the server stops so it cannot
+		// outlive the build step. External callers of the stored closure pass
+		// their own context and are unaffected by this.
+		rctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		go func() {
+			select {
+			case <-ss.stopCh:
+				cancel()
+			case <-rctx.Done():
+			}
+		}()
+		_ = rec(rctx, ui)
+	}()
 }
 
 // drainServerMsgCh discards VNC server messages from ch until ch is closed or
@@ -561,8 +621,8 @@ func (ss *vncViewServer) runFramebufferPollerInner(ctx context.Context, serverMs
 				return
 			}
 			if err := tickConn.FramebufferUpdateRequest(true, 0, 0, w, h); err != nil {
-				if autoReconnect && !stopped && ss.reconnect != nil && ss.ui != nil {
-					go func() { _ = ss.reconnect(ctx, ss.ui) }()
+				if autoReconnect && !stopped {
+					ss.spawnReconnect(ctx)
 				}
 				return
 			}
@@ -572,8 +632,8 @@ func (ss *vncViewServer) runFramebufferPollerInner(ctx context.Context, serverMs
 				ss.mu.RLock()
 				stopped := ss.stopped
 				ss.mu.RUnlock()
-				if autoReconnect && !stopped && ss.reconnect != nil && ss.ui != nil {
-					go func() { _ = ss.reconnect(ctx, ss.ui) }()
+				if autoReconnect && !stopped {
+					ss.spawnReconnect(ctx)
 				}
 				return
 			}

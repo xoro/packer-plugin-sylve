@@ -367,6 +367,16 @@ func (s *StepVNCBootCommand) Run(ctx context.Context, state multistep.StateBag) 
 		rAttempt := 0
 		for {
 			rAttempt++
+			// Bail out immediately once the reconnect context is cancelled so the
+			// goroutine does not start a fresh dial (and read shared state) after
+			// the build step has finished. For poller-spawned reconnects the
+			// context is cancelled by Stop(); externally invoked reconnects use
+			// the caller's own context.
+			select {
+			case <-rctx.Done():
+				return rctx.Err()
+			default:
+			}
 			wsConn, wsResp, dialErr := dialer.Dial(wsURL, http.Header{})
 			if dialErr != nil {
 				// Log the first attempt and every 20th thereafter to avoid spam
@@ -420,7 +430,7 @@ func (s *StepVNCBootCommand) Run(ctx context.Context, state multistep.StateBag) 
 	// when the upstream drops (e.g. guest reboot mid-boot-command sequence).
 	ss.reconnect = reconnect
 	ss.ui = ui
-	go ss.runFramebufferPoller(ctx, serverMsgCh)
+	ss.startPoller(ctx, serverMsgCh)
 
 	ui.Say(fmt.Sprintf("Waiting %s before sending VNC boot commands...", bootWait))
 	select {
@@ -478,6 +488,9 @@ func (s *StepVNCBootCommand) Run(ctx context.Context, state multistep.StateBag) 
 	// WebUI can reclaim the VNC port. StepRestartAfterInstall will reconnect
 	// explicitly after StartVM confirms the new bhyve is running.
 	ss.Stop()
+	// Join the poller and any in-flight reconnect goroutines so they cannot
+	// outlive this step and race on shared state (e.g. vncReconnectRetryDelay).
+	ss.Wait()
 	return multistep.ActionContinue
 }
 
