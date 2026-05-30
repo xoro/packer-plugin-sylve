@@ -3,6 +3,31 @@
 
 # Changelog
 
+## [0.1.12] - 2026-05-30
+
+### Bug Fixes
+
+- _(builder)_ Add storage inventory debug logging before VM delete
+- _(iso)_ Join VNC poller/reconnect goroutines to fix data race
+
+### Other
+
+- _(deps)_ Update Go module dependencies
+
+### Testing
+
+- _(coverage)_ Cover storage-inventory logging and ZFS error paths
+- _(iso)_ Fix flaky TestSelectVNCPort_RemoteProbeSkipsWhenTCPResponds
+
+### Miscellaneous Tasks
+
+- Add nightly workflow for quality checks and acceptance tests
+- _(nightly)_ Always check out development branch
+- _(nightly)_ Disable Go cache upload and install staticcheck
+- _(nightly)_ Remove nightly workflow
+- Add caveman agent skills for GitHub Copilot
+- Bump checkout and setup-go actions to Node 24 (v6)
+
 ## [0.1.11] - 2026-05-24
 
 ### Bug Fixes
