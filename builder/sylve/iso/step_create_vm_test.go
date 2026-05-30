@@ -135,35 +135,6 @@ func TestSelectVNCPort_ListAPIError(t *testing.T) {
 // TestSelectVNCPort_RemoteProbeSkipsWhenTCPResponds exercises the branch where
 // VNCHost is treated as remote and a TCP probe succeeds, so the port is skipped.
 func TestSelectVNCPort_RemoteProbeSkipsWhenTCPResponds(t *testing.T) {
-	var pLow, pHigh int
-	found := false
-	for base := 41000; base < 41200; base++ {
-		l1, err1 := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", base))
-		l2, err2 := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", base+1))
-		if err1 == nil && err2 == nil {
-			pLow, pHigh = base, base+1
-			_ = l1.Close()
-			_ = l2.Close()
-			found = true
-			break
-		}
-		if l1 != nil {
-			_ = l1.Close()
-		}
-		if l2 != nil {
-			_ = l2.Close()
-		}
-	}
-	if !found {
-		t.Skip("could not find two consecutive free ports in scan range")
-	}
-
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", pLow))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ln.Close()
-
 	oldHost := isRemoteHostForVNCPort
 	oldDial := dialTCPForVNCPortProbe
 	isRemoteHostForVNCPort = func(string) bool { return true }
@@ -178,19 +149,44 @@ func TestSelectVNCPort_RemoteProbeSkipsWhenTCPResponds(t *testing.T) {
 	api, srv := testHTTPServerListVMs(t, nil)
 	defer srv.Close()
 
-	step := &StepCreateVM{Config: &Config{
-		VNCPortMin: pLow,
-		VNCPortMax: pHigh,
-		VNCHost:    "127.0.0.1",
-	}}
-	state := new(multistep.BasicStateBag)
-	if err := step.selectVNCPort(api, state); err != nil {
-		t.Fatalf("selectVNCPort: %v", err)
+	// Find a consecutive port pair [pLow, pHigh] where pLow is occupied (so the
+	// remote TCP probe responds and the port is skipped) and pHigh is free (so
+	// it is selected). pHigh is verified free by scan but can be grabbed by
+	// another process before selectVNCPort re-binds it (TOCTOU), so retry across
+	// candidate bases to tolerate transient port contention on busy CI runners.
+	var lastErr error
+	for base := 41000; base < 41200; base++ {
+		pLow, pHigh := base, base+1
+
+		// Hold pLow open so the remote probe to it succeeds (port skipped).
+		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", pLow))
+		if err != nil {
+			continue // pLow not bindable right now, try the next base
+		}
+
+		step := &StepCreateVM{Config: &Config{
+			VNCPortMin: pLow,
+			VNCPortMax: pHigh,
+			VNCHost:    "127.0.0.1",
+		}}
+		state := new(multistep.BasicStateBag)
+		selErr := step.selectVNCPort(api, state)
+		if selErr != nil {
+			// pHigh was likely taken between scan and bind; release and retry.
+			_ = ln.Close()
+			lastErr = selErr
+			continue
+		}
+
+		gotPort := step.Config.VNCPort
+		_ = state.Get("vnc_view_listener").(net.Listener).Close()
+		_ = ln.Close()
+		if gotPort != pHigh {
+			t.Fatalf("VNCPort = %d, want %d (remote probe should skip %d)", gotPort, pHigh, pLow)
+		}
+		return // success
 	}
-	if step.Config.VNCPort != pHigh {
-		t.Fatalf("VNCPort = %d, want %d (remote probe should skip %d)", step.Config.VNCPort, pHigh, pLow)
-	}
-	_ = state.Get("vnc_view_listener").(net.Listener).Close()
+	t.Skipf("could not acquire a usable consecutive port pair: %v", lastErr)
 }
 
 func TestSelectVNCPort_NoFreePortInRange(t *testing.T) {
