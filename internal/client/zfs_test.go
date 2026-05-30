@@ -80,6 +80,25 @@ func TestTakeDatasetSnapshot_PostError(t *testing.T) {
 	}
 }
 
+// TestTakeDatasetSnapshot_ListError covers the path where the snapshot POST
+// succeeds but the subsequent listDatasets call to obtain the GUID fails.
+func TestTakeDatasetSnapshot_ListError(t *testing.T) {
+	routes := map[string]http.HandlerFunc{
+		"POST /api/zfs/datasets/snapshot": func(w http.ResponseWriter, r *http.Request) {
+			okJSON(w, APIResponse[interface{}]{Status: "ok"})
+		},
+		"GET /api/zfs/datasets?type=SNAPSHOT": func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		},
+	}
+	c, srv := serveZFS(t, routes)
+	defer srv.Close()
+
+	if _, err := c.TakeDatasetSnapshot("guid", "zroot/vms/x", "snap"); err == nil {
+		t.Fatal("expected error when snapshot list fails, got nil")
+	}
+}
+
 func TestTakeDatasetSnapshot_NotFoundAfterCreate(t *testing.T) {
 	routes := map[string]http.HandlerFunc{
 		"POST /api/zfs/datasets/snapshot": func(w http.ResponseWriter, r *http.Request) {
@@ -94,23 +113,6 @@ func TestTakeDatasetSnapshot_NotFoundAfterCreate(t *testing.T) {
 
 	if _, err := c.TakeDatasetSnapshot("guid", "zroot/vms/x", "snap"); err == nil {
 		t.Fatal("expected error when snapshot is not in list, got nil")
-	}
-}
-
-func TestTakeDatasetSnapshot_ListSnapshotsRequestFails(t *testing.T) {
-	routes := map[string]http.HandlerFunc{
-		"POST /api/zfs/datasets/snapshot": func(w http.ResponseWriter, r *http.Request) {
-			okJSON(w, APIResponse[interface{}]{Status: "ok"})
-		},
-		"GET /api/zfs/datasets?type=SNAPSHOT": func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, `{"status":"error"}`, http.StatusBadGateway)
-		},
-	}
-	c, srv := serveZFS(t, routes)
-	defer srv.Close()
-
-	if _, err := c.TakeDatasetSnapshot("guid", "zpool/ds", "snap"); err == nil {
-		t.Fatal("expected error when listing snapshots fails after create")
 	}
 }
 
@@ -183,16 +185,17 @@ func TestListDatasets_DirectArray(t *testing.T) {
 	}
 }
 
-func TestListDatasets_RequestError(t *testing.T) {
+// TestListDatasets_Error covers the error path where the GET request fails.
+func TestListDatasets_Error(t *testing.T) {
 	routes := map[string]http.HandlerFunc{
-		"GET /api/zfs/datasets?type=VOLUME": func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "boom", http.StatusBadGateway)
+		"GET /api/zfs/datasets?type=SNAPSHOT": func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
 		},
 	}
 	c, srv := serveZFS(t, routes)
 	defer srv.Close()
 
-	if _, err := c.listDatasets("VOLUME"); err == nil {
-		t.Fatal("expected error when GET datasets fails")
+	if _, err := c.listDatasets("SNAPSHOT"); err == nil {
+		t.Fatal("expected error for 500 response, got nil")
 	}
 }

@@ -388,6 +388,49 @@ func TestStepCreateVM_Cleanup_DestroyFalse_SuccessSkipsDelete(t *testing.T) {
 	}
 }
 
+// TestStepCreateVM_Cleanup_LogsStorageInventory covers the branch where the
+// pre-delete storage inventory fetch succeeds and logs each storage device,
+// including one with a ZFS dataset record and one without.
+func TestStepCreateVM_Cleanup_LogsStorageInventory(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/vm/") && strings.Contains(r.URL.RawQuery, "type=rid"):
+			vm := client.VM{
+				ID:   100,
+				RID:  99,
+				Name: "packer-test",
+				Storages: []client.VMStorage{
+					{ID: 1, Type: "zvol", Name: "disk0", Pool: "tank", Dataset: &client.VMStorageDataset{Pool: "tank", Name: "vms/x"}},
+					{ID: 2, Type: "image", Name: "cd0", Pool: "tank"},
+				},
+			}
+			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/vm/"):
+			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	step := &StepCreateVM{
+		Config: &Config{
+			SylveURL:      srv.URL,
+			SylveToken:    "tok",
+			TLSSkipVerify: true,
+		},
+		vmRID: 99,
+		ctx:   context.Background(),
+	}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+	state.Put("vm_rid", uint(99))
+	state.Put(multistep.StateHalted, true)
+
+	step.Cleanup(state)
+}
+
 func TestStepCreateVM_Cleanup_DeleteErrorStillRuns(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/vm/") {

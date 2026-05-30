@@ -300,6 +300,41 @@ func TestStepCreateFromTemplate_Cleanup_Halted(t *testing.T) {
 	}
 }
 
+// TestStepCreateFromTemplate_Cleanup_LogsStorageInventory covers the branch
+// that logs the recorded storage inventory before deletion, including both a
+// storage entry with a ZFS dataset record and one without.
+func TestStepCreateFromTemplate_Cleanup_LogsStorageInventory(t *testing.T) {
+	var deleted atomic.Bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/vm/5", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			deleted.Store(true)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success"})
+			return
+		}
+		http.NotFound(w, r)
+	})
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := &Config{SylveURL: srv.URL, TLSSkipVerify: true}
+	state := newTestState(t)
+	state.Put("vm_rid", uint(5))
+	state.Put(multistep.StateHalted, true)
+	state.Put("vm_storages", []client.VMStorage{
+		{ID: 1, Type: "zvol", Name: "disk0", Pool: "tank", Dataset: &client.VMStorageDataset{Pool: "tank", Name: "vms/x"}},
+		{ID: 2, Type: "image", Name: "cd0", Pool: "tank"},
+	})
+
+	step := &StepCreateFromTemplate{Config: cfg}
+	step.Cleanup(state)
+
+	if !deleted.Load() {
+		t.Fatal("expected VM to be deleted on halted cleanup")
+	}
+}
+
 func TestStepCreateFromTemplate_Cleanup_NotHalted(t *testing.T) {
 	var deleted atomic.Bool
 	mux := http.NewServeMux()

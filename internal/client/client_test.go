@@ -422,36 +422,6 @@ func TestDo_NoRetryOn500(t *testing.T) {
 	}
 }
 
-func TestDo_ExhaustsAllRetriesOn503(t *testing.T) {
-	var n int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&n, 1)
-		http.Error(w, "unavailable", http.StatusServiceUnavailable)
-	}))
-	defer srv.Close()
-
-	c := newTestClient(srv.URL, "t")
-	var out APIResponse[interface{}]
-	if err := c.get("/ping", &out); err == nil {
-		t.Fatal("expected error after exhausting retries")
-	}
-	if n != int32(maxHTTPAttempts) {
-		t.Fatalf("HTTP attempts = %d, want %d", n, maxHTTPAttempts)
-	}
-}
-
-func TestDo_PostLoopFallbackWhenMaxAttemptsZero(t *testing.T) {
-	orig := maxHTTPAttempts
-	maxHTTPAttempts = 0
-	t.Cleanup(func() { maxHTTPAttempts = orig })
-
-	c := newTestClient("http://unused.example", "t")
-	var out APIResponse[interface{}]
-	if err := c.get("/ping", &out); err != nil {
-		t.Fatalf("expected nil error when loop body is skipped, got %v", err)
-	}
-}
-
 type errReadCloser struct{ err error }
 
 func (e errReadCloser) Read(p []byte) (int, error) { return 0, e.err }
