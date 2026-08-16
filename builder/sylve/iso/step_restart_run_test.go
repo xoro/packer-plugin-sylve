@@ -736,6 +736,80 @@ func TestStepRestartAfterInstall_ShutoffProceedsWithoutStoppedAt(t *testing.T) {
 	}
 }
 
+func TestStepRestartAfterInstall_WedgedLifecycleTaskFailsFast(t *testing.T) {
+	restoreRestartStepDurations(t)
+	restartAfterInstallShutoffPoll = 5 * time.Millisecond
+	restartAfterInstallShutoffMaxWait = 0
+
+	const vmRID = 9
+	const vmID = 100
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	storageUpdateCalled := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		path := r.URL.Path
+		switch {
+		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
+		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
+			// Never reports stopped: simulates bhyve already gone but Sylve's
+			// domain record still showing the VM as running.
+			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: client.VM{
+				ID:        vmID,
+				RID:       vmRID,
+				State:     client.DomainStateRunning,
+				StoppedAt: time.Time{},
+			}})
+		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
+			// Sylve reports the stop lifecycle task is still active (wedged).
+			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{
+				Status: "ok",
+				Data:   map[string]interface{}{"id": "m_stuck"},
+			})
+		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+			storageUpdateCalled = true
+			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	step := &StepRestartAfterInstall{Config: &Config{
+		SylveURL:      srv.URL,
+		SylveToken:    "tok",
+		TLSSkipVerify: true,
+	}}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+	state.Put("vm_rid", uint(vmRID))
+	state.Put("vm_id", uint(vmID))
+	state.Put("iso_storage_id", 1)
+	state.Put("iso_storage_name", "iso")
+	state.Put("iso_storage_emulation", "ahci-cd")
+	state.Put("vnc_view_listener", ln)
+
+	if got := step.Run(context.Background(), state); got != multistep.ActionHalt {
+		t.Fatalf("Run() = %v, want ActionHalt", got)
+	}
+	if storageUpdateCalled {
+		t.Fatal("DisableISOStorage should not be attempted when the lifecycle task is still active")
+	}
+	errVal, ok := state.GetOk("error")
+	if !ok {
+		t.Fatal("expected error to be set in state")
+	}
+	if !strings.Contains(errVal.(error).Error(), "restart the sylve service") {
+		t.Fatalf("error message missing actionable guidance: %v", errVal)
+	}
+}
+
 func TestStepRestartAfterInstall_StartVMDeadlineExhausted(t *testing.T) {
 	restoreRestartStepDurations(t)
 	restartAfterInstallShutoffPoll = 5 * time.Millisecond

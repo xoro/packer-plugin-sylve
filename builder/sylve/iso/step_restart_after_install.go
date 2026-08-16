@@ -69,6 +69,7 @@ func (s *StepRestartAfterInstall) Run(ctx context.Context, state multistep.State
 	// The state field is not used because GetVMByRID always returns state=0
 	// (State has gorm:"-" and is never populated from the DB).
 	shutoffDeadline := time.Now().Add(restartAfterInstallShutoffMaxWait)
+	confirmedStopped := false
 shutoffLoop:
 	for {
 		select {
@@ -87,11 +88,42 @@ shutoffLoop:
 		}
 		if !vm.StoppedAt.IsZero() && vm.StoppedAt.After(stopIssuedAt) {
 			log.Printf("[DEBUG] VM rid=%d is stopped (stoppedAt: %s)", rid, vm.StoppedAt.Format(time.RFC3339))
+			confirmedStopped = true
 			break shutoffLoop
 		}
 		if time.Now().After(shutoffDeadline) {
 			log.Printf("[DEBUG] VM rid=%d still not stopped after 3 minutes; proceeding anyway", rid)
 			break shutoffLoop
+		}
+	}
+
+	// If the VM never confirmed Shutoff, check whether Sylve's own lifecycle
+	// queue still thinks a stop task is active. Sylve has a known failure mode
+	// (server-side, not fixable from this plugin) where the guest-lifecycle-exec
+	// job for a stop action hangs after bhyve has already exited: the job's
+	// goroutine never returns, so Sylve keeps extending the job's queue timeout
+	// forever and never releases the lock that StorageUpdate (used below to
+	// disable the ISO) also needs. Proceeding in that state would just make
+	// DisableISOStorage hang and time out on retry for several more minutes
+	// before failing anyway, and the VM would restart with the ISO still
+	// attached (the exact UEFI-CD-boot-loop this step exists to prevent).
+	// Fail fast instead, with a diagnosis pointing at the real cause.
+	if !confirmedStopped {
+		if vmID, ok := state.Get("vm_id").(uint); ok {
+			if active, err := c.HasActiveLifecycleTask(vmID); err == nil && active {
+				err := fmt.Errorf(
+					"VM rid=%d did not stop within 3 minutes and Sylve reports a lifecycle task "+
+						"still active for VM id=%d. This is a known Sylve server-side issue where the "+
+						"guest-lifecycle-exec stop job hangs after bhyve has already exited, blocking "+
+						"all further VM storage/lifecycle API calls. This cannot be resolved by the "+
+						"plugin; restart the sylve service on the host (service sylve restart) and "+
+						"retry the build",
+					rid, vmID,
+				)
+				state.Put("error", err)
+				ui.Error(err.Error())
+				return multistep.ActionHalt
+			}
 		}
 	}
 
