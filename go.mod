@@ -3,7 +3,7 @@
 
 module github.com/xoro/packer-plugin-sylve
 
-go 1.26.3
+go 1.26.6
 
 require (
 	github.com/gorilla/websocket v1.5.3
