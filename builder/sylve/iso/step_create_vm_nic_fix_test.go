@@ -65,24 +65,24 @@ func serveCreateVMWithNIC(t *testing.T, detachErr, attachErr bool) *httptest.Ser
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
 
-		case r.URL.Path == "/api/vm/network/detach" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/7/networks/5" && r.Method == http.MethodDelete:
 			if detachErr {
 				http.Error(w, "detach failed", http.StatusInternalServerError)
 				return
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
-		case r.URL.Path == "/api/vm/network/attach" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/7/networks" && r.Method == http.MethodPost:
 			if attachErr {
 				http.Error(w, "attach failed", http.StatusInternalServerError)
 				return
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case r.URL.Path == "/api/vm/7/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case r.URL.Path == "/api/vm/7/options/boot-order" && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
 		default:
@@ -239,16 +239,16 @@ func TestStepCreateVM_Run_NICFix_RefreshFails(t *testing.T) {
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
 
-		case r.URL.Path == "/api/vm/network/detach" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/7/networks/5" && r.Method == http.MethodDelete:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
-		case r.URL.Path == "/api/vm/network/attach" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/7/networks" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case r.URL.Path == "/api/vm/7/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case r.URL.Path == "/api/vm/7/options/boot-order" && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
 		default:

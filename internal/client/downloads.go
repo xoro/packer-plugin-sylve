@@ -30,19 +30,22 @@ type Download struct {
 }
 
 // DownloadFileRequest is the body sent to POST /api/utilities/downloads.
+// The "type" field (http/magnet/local) no longer exists in the request; Sylve
+// auto-detects it from the URL. DownloadType classifies the download's
+// purpose and must be one of "base-rootfs", "cloud-init", or "uncategorized";
+// any other value (including the old ad hoc "Packer" string) is rejected with
+// 422 download_request_unprocessable.
 type DownloadFileRequest struct {
-	URL   string `json:"url"`
-	Type  string `json:"type"`
-	UType string `json:"uType"`
+	URL          string `json:"url"`
+	DownloadType string `json:"downloadType"`
 }
 
 // TriggerDownload calls POST /api/utilities/downloads.
 // The API returns no ID; use ListDownloads to poll by URL.
 func (c *Client) TriggerDownload(url string) error {
 	req := DownloadFileRequest{
-		URL:   url,
-		Type:  "http",
-		UType: "Packer",
+		URL:          url,
+		DownloadType: "uncategorized",
 	}
 	var resp APIResponse[interface{}]
 	if err := c.post("/utilities/downloads", req, &resp); err != nil {
@@ -72,4 +75,15 @@ func (c *Client) FindDownloadByURL(url string) (*Download, error) {
 		}
 	}
 	return nil, nil
+}
+
+// DeleteDownload calls DELETE /api/utilities/downloads/:id. Use this to clear
+// a stale "failed" download record (e.g. from a transient network error on a
+// previous build) before retriggering a fresh download for the same URL.
+func (c *Client) DeleteDownload(id uint) error {
+	path := fmt.Sprintf("/utilities/downloads/%d", id)
+	if err := c.delete(path); err != nil {
+		return fmt.Errorf("delete download id=%d: %w", id, err)
+	}
+	return nil
 }

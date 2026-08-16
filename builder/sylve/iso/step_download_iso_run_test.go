@@ -57,19 +57,64 @@ func TestStepDownloadISO_AlreadyDone(t *testing.T) {
 	}
 }
 
-func TestStepDownloadISO_ExistingFailed(t *testing.T) {
+func TestStepDownloadISO_ExistingFailed_RetriesAndSucceeds(t *testing.T) {
+	restoreDownloadISODurations(t)
+	var deleteCalled, triggerCalled bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/utilities/downloads" || r.Method != http.MethodGet {
-			http.NotFound(w, r)
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(client.APIResponse[[]client.Download]{
-			Status: "ok",
-			Data: []client.Download{
-				{URL: testISOURL, Status: client.DownloadStatusFailed, Error: "disk full"},
-			},
-		})
+		switch {
+		case r.URL.Path == "/api/utilities/downloads" && r.Method == http.MethodGet:
+			var data []client.Download
+			if deleteCalled {
+				data = []client.Download{{ID: 99, URL: testISOURL, Status: client.DownloadStatusDone, UUID: "fresh-uuid"}}
+			} else {
+				data = []client.Download{{ID: 99, URL: testISOURL, Status: client.DownloadStatusFailed, Error: "disk full"}}
+			}
+			_ = json.NewEncoder(w).Encode(client.APIResponse[[]client.Download]{Status: "ok", Data: data})
+		case r.URL.Path == "/api/utilities/downloads/99" && r.Method == http.MethodDelete:
+			deleteCalled = true
+			w.WriteHeader(http.StatusNoContent)
+		case r.URL.Path == "/api/utilities/downloads" && r.Method == http.MethodPost:
+			triggerCalled = true
+			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	step := &StepDownloadISO{Config: testStepDownloadISOConfig(srv.URL)}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+
+	if got := step.Run(context.Background(), state); got != multistep.ActionContinue {
+		t.Fatalf("Run() = %v, want ActionContinue", got)
+	}
+	if !deleteCalled {
+		t.Fatal("expected stale failed download record to be deleted")
+	}
+	if !triggerCalled {
+		t.Fatal("expected a fresh download to be triggered after clearing the stale record")
+	}
+	if state.Get("iso_uuid") != "fresh-uuid" {
+		t.Fatalf("iso_uuid = %v, want fresh-uuid", state.Get("iso_uuid"))
+	}
+}
+
+func TestStepDownloadISO_ExistingFailed_DeleteErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/utilities/downloads" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(client.APIResponse[[]client.Download]{
+				Status: "ok",
+				Data:   []client.Download{{ID: 99, URL: testISOURL, Status: client.DownloadStatusFailed, Error: "disk full"}},
+			})
+		case r.URL.Path == "/api/utilities/downloads/99" && r.Method == http.MethodDelete:
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer srv.Close()
 

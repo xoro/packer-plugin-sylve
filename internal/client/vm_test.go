@@ -243,7 +243,7 @@ func TestGetSimpleVMByRID_Error(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStartVM_Success(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/start/5", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/5/actions/start", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
 		okJSON(w, APIResponse[interface{}]{Status: "ok"})
 	})
 	defer srv.Close()
@@ -254,7 +254,7 @@ func TestStartVM_Success(t *testing.T) {
 }
 
 func TestStartVM_Error(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/start/5", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/5/actions/start", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "conflict", http.StatusConflict)
 	})
 	defer srv.Close()
@@ -269,7 +269,7 @@ func TestStartVM_Error(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStopVM_Success(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/stop/6", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/6/actions/stop", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
 		okJSON(w, APIResponse[interface{}]{Status: "ok"})
 	})
 	defer srv.Close()
@@ -280,7 +280,7 @@ func TestStopVM_Success(t *testing.T) {
 }
 
 func TestStopVM_Error(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/stop/6", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/6/actions/stop", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	})
 	defer srv.Close()
@@ -295,7 +295,7 @@ func TestStopVM_Error(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetVMLogs_Success(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/logs/8", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/8/logs", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"status":"ok","data":{"logs":"bhyve started\nbhyve exited"}}`)
 	})
@@ -311,7 +311,7 @@ func TestGetVMLogs_Success(t *testing.T) {
 }
 
 func TestGetVMLogs_Error(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/logs/8", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/8/logs", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 	})
 	defer srv.Close()
@@ -327,17 +327,14 @@ func TestGetVMLogs_Error(t *testing.T) {
 
 func TestUpdateStorageBootOrder_Success(t *testing.T) {
 	var gotReq StorageUpdateRequest
-	c, srv := serveVM(t, "/api/vm/storage/update", http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/2/storage/12", http.MethodPatch, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&gotReq)
 		okJSON(w, APIResponse[interface{}]{Status: "ok"})
 	})
 	defer srv.Close()
 
-	if err := c.UpdateStorageBootOrder(12, "iso", "ahci-cd", 100); err != nil {
+	if err := c.UpdateStorageBootOrder(2, 12, 100); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if gotReq.ID != 12 || gotReq.Name != "iso" || gotReq.Emulation != "ahci-cd" {
-		t.Errorf("unexpected request: %+v", gotReq)
 	}
 	if gotReq.BootOrder == nil || *gotReq.BootOrder != 100 {
 		t.Errorf("BootOrder = %v, want 100", gotReq.BootOrder)
@@ -345,12 +342,12 @@ func TestUpdateStorageBootOrder_Success(t *testing.T) {
 }
 
 func TestUpdateStorageBootOrder_Error(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/storage/update", http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/2/storage/1", http.MethodPatch, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 	})
 	defer srv.Close()
 
-	if err := c.UpdateStorageBootOrder(1, "d", "e", 0); err == nil {
+	if err := c.UpdateStorageBootOrder(2, 1, 0); err == nil {
 		t.Fatal("expected error for 400 response, got nil")
 	}
 }
@@ -361,30 +358,27 @@ func TestUpdateStorageBootOrder_Error(t *testing.T) {
 
 func TestDisableISOStorage_Success(t *testing.T) {
 	var gotReq StorageUpdateRequest
-	c, srv := serveVM(t, "/api/vm/storage/update", http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/3/storage/7", http.MethodPatch, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&gotReq)
 		okJSON(w, APIResponse[interface{}]{Status: "ok"})
 	})
 	defer srv.Close()
 
-	if err := c.DisableISOStorage(7, "cd0", "ahci-cd"); err != nil {
+	if err := c.DisableISOStorage(3, 7); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotReq.Enable == nil || *gotReq.Enable != false {
 		t.Errorf("Enable = %v, want false", gotReq.Enable)
 	}
-	if gotReq.ID != 7 {
-		t.Errorf("storage ID = %d, want 7", gotReq.ID)
-	}
 }
 
 func TestDisableISOStorage_Error(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/storage/update", http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/3/storage/1", http.MethodPatch, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	})
 	defer srv.Close()
 
-	if err := c.DisableISOStorage(1, "iso", "ahci-cd"); err == nil {
+	if err := c.DisableISOStorage(3, 1); err == nil {
 		t.Fatal("expected error for 500 response, got nil")
 	}
 }
@@ -394,7 +388,7 @@ func TestDisableISOStorage_Error(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDisableStartAtBoot_Success(t *testing.T) {
-	path := fmt.Sprintf("/api/vm/options/boot-order/%d", 9)
+	path := fmt.Sprintf("/api/vm/%d/options/boot-order", 9)
 	c, srv := serveVM(t, path, http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
 		okJSON(w, APIResponse[interface{}]{Status: "ok"})
 	})
@@ -406,7 +400,7 @@ func TestDisableStartAtBoot_Success(t *testing.T) {
 }
 
 func TestDisableStartAtBoot_Error(t *testing.T) {
-	path := fmt.Sprintf("/api/vm/options/boot-order/%d", 9)
+	path := fmt.Sprintf("/api/vm/%d/options/boot-order", 9)
 	c, srv := serveVM(t, path, http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 	})
@@ -577,9 +571,7 @@ func TestFindVMByName_ListError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestDetachVMNetwork_Success(t *testing.T) {
-	var gotReq NetworkDetachRequest
-	c, srv := serveVM(t, "/api/vm/network/detach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewDecoder(r.Body).Decode(&gotReq)
+	c, srv := serveVM(t, "/api/vm/5/networks/12", http.MethodDelete, func(w http.ResponseWriter, r *http.Request) {
 		okJSON(w, APIResponse[interface{}]{Status: "ok"})
 	})
 	defer srv.Close()
@@ -587,14 +579,10 @@ func TestDetachVMNetwork_Success(t *testing.T) {
 	if err := c.DetachVMNetwork(5, 12); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if gotReq.RID != 5 || gotReq.NetworkID != 12 {
-		t.Errorf("unexpected request body: RID=%d NetworkID=%d, want RID=5 NetworkID=12",
-			gotReq.RID, gotReq.NetworkID)
-	}
 }
 
 func TestDetachVMNetwork_Error(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/network/detach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/1/networks/2", http.MethodDelete, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	})
 	defer srv.Close()
@@ -610,7 +598,7 @@ func TestDetachVMNetwork_Error(t *testing.T) {
 
 func TestReattachVMNetwork_Success(t *testing.T) {
 	var gotReq NetworkAttachRequest
-	c, srv := serveVM(t, "/api/vm/network/attach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/5/networks", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&gotReq)
 		okJSON(w, APIResponse[interface{}]{Status: "ok"})
 	})
@@ -620,7 +608,7 @@ func TestReattachVMNetwork_Success(t *testing.T) {
 	if err := c.ReattachVMNetwork(5, "PackerSwitch", "virtio-net", &macID); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if gotReq.RID != 5 || gotReq.SwitchName != "PackerSwitch" || gotReq.Emulation != "virtio-net" {
+	if gotReq.SwitchName != "PackerSwitch" || gotReq.Emulation != "virtio-net" {
 		t.Errorf("unexpected request: %+v", gotReq)
 	}
 	if gotReq.MacID == nil || *gotReq.MacID != 99 {
@@ -630,7 +618,7 @@ func TestReattachVMNetwork_Success(t *testing.T) {
 
 func TestReattachVMNetwork_NilMacID(t *testing.T) {
 	var gotReq NetworkAttachRequest
-	c, srv := serveVM(t, "/api/vm/network/attach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/7/networks", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&gotReq)
 		okJSON(w, APIResponse[interface{}]{Status: "ok"})
 	})
@@ -645,7 +633,7 @@ func TestReattachVMNetwork_NilMacID(t *testing.T) {
 }
 
 func TestReattachVMNetwork_Error(t *testing.T) {
-	c, srv := serveVM(t, "/api/vm/network/attach", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+	c, srv := serveVM(t, "/api/vm/1/networks", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 	})
 	defer srv.Close()

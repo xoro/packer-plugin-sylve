@@ -263,11 +263,7 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 	for _, st := range vm.Storages {
 		if st.Type == "image" {
 			log.Printf("[DEBUG] Setting ISO storage id=%d boot order to 100...", st.ID)
-			name := st.Name
-			if name == "" {
-				name = "iso"
-			}
-			if fixErr := c.UpdateStorageBootOrder(int(st.ID), name, st.Emulation, 100); fixErr != nil {
+			if fixErr := c.UpdateStorageBootOrder(vm.RID, int(st.ID), 100); fixErr != nil {
 				ui.Say(fmt.Sprintf("Warning: could not set ISO boot order id=%d: %s", st.ID, fixErr))
 			}
 			break
@@ -337,12 +333,6 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 	for _, st := range vm.Storages {
 		if st.Type == "image" {
 			state.Put("iso_storage_id", int(st.ID))
-			isoName := st.Name
-			if isoName == "" {
-				isoName = "iso"
-			}
-			state.Put("iso_storage_name", isoName)
-			state.Put("iso_storage_emulation", st.Emulation)
 			break
 		}
 	}

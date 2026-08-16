@@ -40,7 +40,7 @@ func TestStepShutdown_SuccessWhenVMNotRunning(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == fmt.Sprintf("/api/vm/stop/%d", rid) && r.Method == http.MethodPost:
+		case r.URL.Path == fmt.Sprintf("/api/vm/%d/actions/stop", rid) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case strings.HasPrefix(r.URL.Path, "/api/vm/simple/") && r.Method == http.MethodGet && r.URL.Query().Get("type") == "rid":
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{
@@ -81,7 +81,7 @@ func TestStepShutdown_SimpleVMPollErrorThenShutoff(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == fmt.Sprintf("/api/vm/stop/%d", rid) && r.Method == http.MethodPost:
+		case r.URL.Path == fmt.Sprintf("/api/vm/%d/actions/stop", rid) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case strings.HasPrefix(r.URL.Path, "/api/vm/simple/") && r.Method == http.MethodGet && r.URL.Query().Get("type") == "rid":
 			n := atomic.AddInt32(&getN, 1)
@@ -130,7 +130,7 @@ func TestStepShutdown_PostPoweroffStopError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == fmt.Sprintf("/api/vm/stop/%d", rid) && r.Method == http.MethodPost:
+		case r.URL.Path == fmt.Sprintf("/api/vm/%d/actions/stop", rid) && r.Method == http.MethodPost:
 			http.Error(w, "stop failed", http.StatusInternalServerError)
 			return
 		case strings.HasPrefix(r.URL.Path, "/api/vm/simple/") && r.Method == http.MethodGet && r.URL.Query().Get("type") == "rid":
@@ -172,7 +172,7 @@ func TestStepShutdown_SimpleVMNotFoundTreatsAsStopped(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == fmt.Sprintf("/api/vm/stop/%d", rid) && r.Method == http.MethodPost:
+		case r.URL.Path == fmt.Sprintf("/api/vm/%d/actions/stop", rid) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case strings.HasPrefix(r.URL.Path, "/api/vm/simple/") && r.Method == http.MethodGet && r.URL.Query().Get("type") == "rid":
 			http.NotFound(w, r)
@@ -214,7 +214,7 @@ func TestStepShutdown_WaitTimeoutForcesStop(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == fmt.Sprintf("/api/vm/stop/%d", rid) && r.Method == http.MethodPost:
+		case r.URL.Path == fmt.Sprintf("/api/vm/%d/actions/stop", rid) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case strings.HasPrefix(r.URL.Path, "/api/vm/simple/") && r.Method == http.MethodGet && r.URL.Query().Get("type") == "rid":
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{
@@ -261,7 +261,7 @@ func TestStepShutdown_WaitTimeoutForceStopError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == fmt.Sprintf("/api/vm/stop/%d", rid) && r.Method == http.MethodPost:
+		case r.URL.Path == fmt.Sprintf("/api/vm/%d/actions/stop", rid) && r.Method == http.MethodPost:
 			http.Error(w, "stop failed", http.StatusInternalServerError)
 			return
 		case strings.HasPrefix(r.URL.Path, "/api/vm/simple/") && r.Method == http.MethodGet && r.URL.Query().Get("type") == "rid":

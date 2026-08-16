@@ -27,7 +27,7 @@ func serveRestartWithNIC(t *testing.T, vmRID, vmID int, detachErr, attachErr boo
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
@@ -43,20 +43,20 @@ func serveRestartWithNIC(t *testing.T, vmRID, vmID int, detachErr, attachErr boo
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
 
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == fmt.Sprintf("/api/vm/%d/storage/1", vmRID) && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
-		case path == "/api/vm/network/detach" && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/networks/5", vmRID) && r.Method == http.MethodDelete:
 			if detachErr {
 				http.Error(w, "detach failed", http.StatusInternalServerError)
 				return
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 
-		case path == "/api/vm/network/attach" && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/networks", vmRID) && r.Method == http.MethodPost:
 			if attachErr {
 				http.Error(w, "attach failed", http.StatusInternalServerError)
 				return

@@ -160,8 +160,8 @@ func TestTriggerDownload_Success(t *testing.T) {
 	if gotReq.URL != "https://example.com/os.iso" {
 		t.Errorf("request URL = %q, want %q", gotReq.URL, "https://example.com/os.iso")
 	}
-	if gotReq.Type != "http" || gotReq.UType != "Packer" {
-		t.Errorf("unexpected type/utype: %q/%q", gotReq.Type, gotReq.UType)
+	if gotReq.DownloadType != "uncategorized" {
+		t.Errorf("downloadType = %q, want %q", gotReq.DownloadType, "uncategorized")
 	}
 }
 

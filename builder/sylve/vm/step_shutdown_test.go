@@ -53,7 +53,7 @@ func TestStepShutdown_NoShutdownCommand_StopsAndWaits(t *testing.T) {
 	// POST /api/vm/stop/:rid — success
 	// GET  /api/vm/simple/:rid?type=rid — returns state=0 (stopped)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/stop/9", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/9/actions/stop", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -101,7 +101,7 @@ func TestStepShutdown_VMNotFound_Continue(t *testing.T) {
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/stop/13", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/13/actions/stop", func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]interface{}{"status": "success", "data": nil}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -135,7 +135,7 @@ func TestStepShutdown_ContextCancel_Halt(t *testing.T) {
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/stop/15", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/15/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := map[string]interface{}{"status": "success", "data": nil}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -182,7 +182,7 @@ func TestStepShutdown_Timeout_ForcedStop(t *testing.T) {
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/stop/17", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/17/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := map[string]interface{}{"status": "success", "data": nil}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -224,7 +224,7 @@ func TestStepShutdown_ShutdownCommand_MockCommunicator_Success(t *testing.T) {
 
 	const rid uint = 71
 	mux := http.NewServeMux()
-	mux.HandleFunc(fmt.Sprintf("/api/vm/stop/%d", rid), func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(fmt.Sprintf("/api/vm/%d/actions/stop", rid), func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -272,7 +272,7 @@ func TestStepShutdown_PostStopVMAfterShutdownCommand_NonFatal(t *testing.T) {
 
 	const rid uint = 73
 	mux := http.NewServeMux()
-	mux.HandleFunc(fmt.Sprintf("/api/vm/stop/%d", rid), func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(fmt.Sprintf("/api/vm/%d/actions/stop", rid), func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -338,7 +338,7 @@ func TestStepShutdown_GetSimpleVM_TransientHTTPErrorRetries(t *testing.T) {
 	const rid uint = 75
 	var getN int32
 	mux := http.NewServeMux()
-	mux.HandleFunc(fmt.Sprintf("/api/vm/stop/%d", rid), func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(fmt.Sprintf("/api/vm/%d/actions/stop", rid), func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]interface{}{"status": "success", "data": nil}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -384,7 +384,7 @@ func TestStepShutdown_Timeout_SecondForceStop_ErrorsLogged(t *testing.T) {
 	const rid uint = 77
 	var stopCalls int32
 	mux := http.NewServeMux()
-	mux.HandleFunc(fmt.Sprintf("/api/vm/stop/%d", rid), func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(fmt.Sprintf("/api/vm/%d/actions/stop", rid), func(w http.ResponseWriter, _ *http.Request) {
 		c := atomic.AddInt32(&stopCalls, 1)
 		if c >= 2 {
 			http.Error(w, "cannot stop again", http.StatusInternalServerError)

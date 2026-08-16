@@ -71,7 +71,7 @@ func TestStepRestartAfterInstall_Run_Success(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: client.VM{ID: vmID, RID: vmRID, StoppedAt: time.Now()}})
@@ -79,9 +79,9 @@ func TestStepRestartAfterInstall_Run_Success(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -123,7 +123,7 @@ func TestStepRestartAfterInstall_StartVMRetryThenSuccess(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: client.VM{ID: vmID, RID: vmRID, StoppedAt: time.Now()}})
@@ -131,14 +131,14 @@ func TestStepRestartAfterInstall_StartVMRetryThenSuccess(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			n := atomic.AddInt32(&startCalls, 1)
 			if n == 1 {
 				http.Error(w, "lifecycle_task_in_progress", http.StatusConflict)
 				return
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -183,7 +183,7 @@ func TestStepRestartAfterInstall_StopVMError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			http.Error(w, "stop failed", http.StatusInternalServerError)
 			return
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
@@ -192,9 +192,9 @@ func TestStepRestartAfterInstall_StopVMError(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -235,7 +235,7 @@ func TestStepRestartAfterInstall_DisableISOError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: client.VM{ID: vmID, RID: vmRID, StoppedAt: time.Now()}})
@@ -243,9 +243,9 @@ func TestStepRestartAfterInstall_DisableISOError(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			http.Error(w, "disable failed", http.StatusInternalServerError)
 			return
 		default:
@@ -288,7 +288,7 @@ func TestStepRestartAfterInstall_NoVmID_SkipsLifecycleWait(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getVMCalls, 1)
@@ -305,9 +305,9 @@ func TestStepRestartAfterInstall_NoVmID_SkipsLifecycleWait(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
 		case path == fmt.Sprintf("/api/vm/simple/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: vmRID, State: client.DomainStateRunning}})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -350,7 +350,7 @@ func TestStepRestartAfterInstall_TaskPollErrorThenSuccess(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getVMCalls, 1)
@@ -375,9 +375,9 @@ func TestStepRestartAfterInstall_TaskPollErrorThenSuccess(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -423,7 +423,7 @@ func TestStepRestartAfterInstall_VNCReconnectError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getVMCalls, 1)
@@ -443,9 +443,9 @@ func TestStepRestartAfterInstall_VNCReconnectError(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -491,7 +491,7 @@ func TestStepRestartAfterInstall_Run_SuccessDomainNoState(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getVMCalls, 1)
@@ -511,9 +511,9 @@ func TestStepRestartAfterInstall_Run_SuccessDomainNoState(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -558,7 +558,7 @@ func TestStepRestartAfterInstall_ShutoffGetVMErrorsUntilDeadline(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getVMCalls, 1)
@@ -575,9 +575,9 @@ func TestStepRestartAfterInstall_ShutoffGetVMErrorsUntilDeadline(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -628,7 +628,7 @@ func TestStepRestartAfterInstall_ShutoffGetVMTransientErrorBeforeRecover(t *test
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getVMCalls, 1)
@@ -646,9 +646,9 @@ func TestStepRestartAfterInstall_ShutoffGetVMTransientErrorBeforeRecover(t *test
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -694,7 +694,7 @@ func TestStepRestartAfterInstall_ShutoffProceedsWithoutStoppedAt(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: client.VM{
@@ -707,9 +707,9 @@ func TestStepRestartAfterInstall_ShutoffProceedsWithoutStoppedAt(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -755,7 +755,7 @@ func TestStepRestartAfterInstall_WedgedLifecycleTaskFailsFast(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			// Never reports stopped: simulates bhyve already gone but Sylve's
@@ -772,7 +772,7 @@ func TestStepRestartAfterInstall_WedgedLifecycleTaskFailsFast(t *testing.T) {
 				Status: "ok",
 				Data:   map[string]interface{}{"id": "m_stuck"},
 			})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			storageUpdateCalled = true
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
@@ -830,7 +830,7 @@ func TestStepRestartAfterInstall_StartVMDeadlineExhausted(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: client.VM{
@@ -843,10 +843,10 @@ func TestStepRestartAfterInstall_StartVMDeadlineExhausted(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			http.Error(w, "start failed", http.StatusInternalServerError)
 			return
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -896,7 +896,7 @@ func TestStepRestartAfterInstall_LifecycleTaskDeadlineProceeds(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: client.VM{
@@ -917,9 +917,9 @@ func TestStepRestartAfterInstall_LifecycleTaskDeadlineProceeds(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -969,7 +969,7 @@ func TestStepRestartAfterInstall_RunStateDeadline(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: client.VM{
@@ -980,9 +980,9 @@ func TestStepRestartAfterInstall_RunStateDeadline(t *testing.T) {
 			}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -1020,7 +1020,7 @@ func TestStepRestartAfterInstall_ShutoffLoopContextCancelled(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -1059,7 +1059,7 @@ func TestStepRestartAfterInstall_StartRetryContextCancelled(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getVMCalls, 1)
@@ -1077,7 +1077,7 @@ func TestStepRestartAfterInstall_StartRetryContextCancelled(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = atomic.AddInt32(&startCalls, 1)
 			cancelOnce.Do(func() {
 				go func() {
@@ -1086,7 +1086,7 @@ func TestStepRestartAfterInstall_StartRetryContextCancelled(t *testing.T) {
 				}()
 			})
 			http.Error(w, "lifecycle_task_in_progress", http.StatusConflict)
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -1128,7 +1128,7 @@ func TestStepRestartAfterInstall_RunningPollGetVMIntermittentError(t *testing.T)
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = atomic.AddInt32(&getVMCalls, 1)
@@ -1151,9 +1151,9 @@ func TestStepRestartAfterInstall_RunningPollGetVMIntermittentError(t *testing.T)
 			}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -1198,7 +1198,7 @@ func TestStepRestartAfterInstall_TaskPollContextCancelled(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getVMCalls, 1)
@@ -1216,9 +1216,9 @@ func TestStepRestartAfterInstall_TaskPollContextCancelled(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: map[string]interface{}{"t": 1}})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -1265,7 +1265,7 @@ func TestStepRestartAfterInstall_RunningPollContextCancelled(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == fmt.Sprintf("/api/vm/stop/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/stop", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == fmt.Sprintf("/api/vm/%d", vmRID) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getVMCalls, 1)
@@ -1285,9 +1285,9 @@ func TestStepRestartAfterInstall_RunningPollContextCancelled(t *testing.T) {
 			}})
 		case path == fmt.Sprintf("/api/tasks/lifecycle/active/vm/%d", vmID) && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == fmt.Sprintf("/api/vm/start/%d", vmRID) && r.Method == http.MethodPost:
+		case path == fmt.Sprintf("/api/vm/%d/actions/start", vmRID) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/9/storage/1" && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)

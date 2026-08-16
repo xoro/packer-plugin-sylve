@@ -54,7 +54,7 @@ func TestStepFixNIC_Success(t *testing.T) {
 	mux := http.NewServeMux()
 
 	// StartVM
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -66,7 +66,7 @@ func TestStepFixNIC_Success(t *testing.T) {
 	})
 
 	// StopVM
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -94,8 +94,8 @@ func TestStepFixNIC_Success(t *testing.T) {
 	})
 
 	// DetachVMNetwork
-	mux.HandleFunc("/api/vm/network/detach", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
 		}
@@ -106,7 +106,7 @@ func TestStepFixNIC_Success(t *testing.T) {
 	})
 
 	// ReattachVMNetwork
-	mux.HandleFunc("/api/vm/network/attach", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -208,7 +208,7 @@ func TestStepFixNIC_BootstrapStartFails_Halt(t *testing.T) {
 	t.Cleanup(func() { fixNICPollInterval = origPoll })
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 	})
 	srv := httptest.NewTLSServer(mux)
@@ -240,12 +240,12 @@ func TestStepFixNIC_StopTimeout_Halt(t *testing.T) {
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -289,12 +289,12 @@ func TestStepFixNIC_DetachError_Halt(t *testing.T) {
 
 	var pollCount atomic.Int32
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -313,7 +313,7 @@ func TestStepFixNIC_DetachError_Halt(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/detach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	})
 	srv := httptest.NewTLSServer(mux)
@@ -346,12 +346,12 @@ func TestStepFixNIC_ReattachError_Halt(t *testing.T) {
 
 	var pollCount atomic.Int32
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -369,12 +369,12 @@ func TestStepFixNIC_ReattachError_Halt(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/detach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/attach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "fail", http.StatusInternalServerError)
 	})
 	srv := httptest.NewTLSServer(mux)
@@ -409,12 +409,12 @@ func TestStepFixNIC_WinRM_PreservesMAC(t *testing.T) {
 	var receivedMacID *uint
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -432,12 +432,12 @@ func TestStepFixNIC_WinRM_PreservesMAC(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/detach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/attach", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks", func(w http.ResponseWriter, r *http.Request) {
 		var req client.NetworkAttachRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		receivedMacID = req.MacID
@@ -501,12 +501,12 @@ func TestStepFixNIC_SwitchFromEnv(t *testing.T) {
 	var receivedSwitch string
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -524,12 +524,12 @@ func TestStepFixNIC_SwitchFromEnv(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/detach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/attach", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks", func(w http.ResponseWriter, r *http.Request) {
 		var req client.NetworkAttachRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		receivedSwitch = req.SwitchName
@@ -590,12 +590,12 @@ func TestStepFixNIC_SwitchFromListSwitches(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -613,12 +613,12 @@ func TestStepFixNIC_SwitchFromListSwitches(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/detach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/attach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -685,12 +685,12 @@ func TestStepFixNIC_BootstrapTimeout_ContinuesAnyway(t *testing.T) {
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -710,12 +710,12 @@ func TestStepFixNIC_BootstrapTimeout_ContinuesAnyway(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/detach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/attach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -755,7 +755,7 @@ func TestStepFixNIC_CtxCancelDuringBootstrap_Halt(t *testing.T) {
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -801,12 +801,12 @@ func TestStepFixNIC_CtxCancelDuringStopPoll_Halt(t *testing.T) {
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -867,12 +867,12 @@ func TestStepFixNIC_PollErrors_Continue(t *testing.T) {
 
 	var pollCount atomic.Int32
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -901,12 +901,12 @@ func TestStepFixNIC_PollErrors_Continue(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(resp)
 		}
 	})
-	mux.HandleFunc("/api/vm/network/detach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/attach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -946,13 +946,13 @@ func TestStepFixNIC_StopVMError_ContinuesAnyway(t *testing.T) {
 
 	var pollCount atomic.Int32
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/start/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 	// StopVM returns error (VM might already be stopped).
-	mux.HandleFunc("/api/vm/stop/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "already stopped", http.StatusConflict)
 	})
 	mux.HandleFunc("/api/vm/simple/5", func(w http.ResponseWriter, _ *http.Request) {
@@ -968,12 +968,12 @@ func TestStepFixNIC_StopVMError_ContinuesAnyway(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/detach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/network/attach", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/5/networks", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)

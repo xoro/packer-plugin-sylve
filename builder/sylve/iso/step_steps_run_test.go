@@ -102,7 +102,7 @@ func TestStepDeleteVM_DestroyTrue_Deletes(t *testing.T) {
 func TestStepStartVM_StartFails(t *testing.T) {
 	restoreStartVMDurations(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/vm/start/3" && r.Method == http.MethodPost {
+		if r.URL.Path == "/api/vm/3/actions/start" && r.Method == http.MethodPost {
 			http.Error(w, "no", http.StatusConflict)
 			return
 		}
@@ -126,12 +126,12 @@ func TestStepStartVM_RunUntilRunning(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			atomic.AddInt32(&startCalls, 1)
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -162,7 +162,7 @@ func TestStepStartVM_PollErrorThenRunning(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			n := atomic.AddInt32(&getN, 1)
@@ -171,7 +171,7 @@ func TestStepStartVM_PollErrorThenRunning(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -201,11 +201,11 @@ func TestStepStartVM_BhyveLogsFetchedWhenNonEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -232,11 +232,11 @@ func TestStepStartVM_ReturnsRunningFromSimpleEndpoint(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -269,7 +269,7 @@ func TestStepStartVM_TimesOutWaitingForRunning(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateNoState}})
@@ -295,7 +295,7 @@ func TestStepStartVM_ContextCancelledDuringPoll(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == fmt.Sprintf("/api/vm/start/%d", rid) && r.Method == http.MethodPost:
+		case r.URL.Path == fmt.Sprintf("/api/vm/%d/actions/start", rid) && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == fmt.Sprintf("/api/vm/simple/%d", rid) && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: rid, State: client.DomainStateShutoff}})
@@ -336,7 +336,7 @@ func TestStepStartVM_ReleasesVNCListenerBeforeStart(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			// Verify the listener is already closed before StartVM reaches the server.
 			// Attempt to bind the same port: if the plugin still holds it, this will fail.
 			probe, probeErr := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
@@ -350,7 +350,7 @@ func TestStepStartVM_ReleasesVNCListenerBeforeStart(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -395,11 +395,11 @@ func TestStepStartVM_WaitsForLifecycleTaskThenStarts(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -438,11 +438,11 @@ func TestStepStartVM_LifecycleTaskPollErrorThenClears(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -478,11 +478,11 @@ func TestStepStartVM_LifecycleTaskDeadlineProceedsAnyway(t *testing.T) {
 				Status: "ok",
 				Data:   map[string]interface{}{"still": "running"},
 			})
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -511,7 +511,7 @@ func TestStepStartVM_StartVMRetriesUntilSuccess(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			n := atomic.AddInt32(&startCalls, 1)
 			if n < 4 {
 				http.Error(w, "lifecycle_task_in_progress", http.StatusConflict)
@@ -520,7 +520,7 @@ func TestStepStartVM_StartVMRetriesUntilSuccess(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -581,7 +581,7 @@ func TestStepStartVM_ContextCancelledDuringLifecycleWait(t *testing.T) {
 func TestStepStartVM_ContextCancelledDuringStartRetry(t *testing.T) {
 	restoreStartVMDurations(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost {
+		if r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost {
 			http.Error(w, "busy", http.StatusConflict)
 			return
 		}
@@ -610,11 +610,11 @@ func TestStepStartVM_BlockedStateCountsAsRunning(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateBlocked}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -641,11 +641,11 @@ func TestStepStartVM_IgnoresVNCListenerWrongTypeInState(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/vm/start/9" && r.Method == http.MethodPost:
+		case r.URL.Path == "/api/vm/9/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case r.URL.Path == "/api/vm/simple/9" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{RID: 9, State: client.DomainStateRunning}})
-		case r.URL.Path == "/api/vm/logs/9" && r.Method == http.MethodGet:
+		case r.URL.Path == "/api/vm/9/logs" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[struct {
 				Logs string `json:"logs"`
 			}]{Status: "ok", Data: struct {
@@ -1002,7 +1002,7 @@ func TestStepShutdown_VMStops(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		p := r.URL.Path
 		switch {
-		case p == "/api/vm/stop/2" && r.Method == http.MethodPost:
+		case p == "/api/vm/2/actions/stop" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case p == "/api/vm/simple/2" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			sm := client.SimpleVM{RID: rid, State: client.DomainStateShutoff}

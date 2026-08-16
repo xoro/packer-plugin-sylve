@@ -90,7 +90,7 @@ func TestStepShutdown_StopVMErrorStillContinues(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		p := r.URL.Path
 		switch {
-		case p == "/api/vm/stop/3" && r.Method == http.MethodPost:
+		case p == "/api/vm/3/actions/stop" && r.Method == http.MethodPost:
 			http.Error(w, "already", http.StatusConflict)
 		case p == "/api/vm/simple/3" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			sm := client.SimpleVM{RID: rid, State: client.DomainStateShutoff}
@@ -133,7 +133,7 @@ func TestStepRestartAfterInstall_DisableISOErrorStillContinues(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		path := r.URL.Path
 		switch {
-		case path == "/api/vm/stop/11" && r.Method == http.MethodPost:
+		case path == "/api/vm/11/actions/stop" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		case path == "/api/vm/11" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
 			_ = atomic.AddInt32(&getVMCalls, 1)
@@ -142,9 +142,9 @@ func TestStepRestartAfterInstall_DisableISOErrorStillContinues(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.SimpleVM]{Status: "ok", Data: client.SimpleVM{ID: vmID, RID: vmRID, State: client.DomainStateRunning}})
 		case path == "/api/tasks/lifecycle/active/vm/110" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[map[string]interface{}]{Status: "ok", Data: nil})
-		case path == "/api/vm/start/11" && r.Method == http.MethodPost:
+		case path == "/api/vm/11/actions/start" && r.Method == http.MethodPost:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case path == "/api/vm/11/storage/1" && r.Method == http.MethodPatch:
 			http.Error(w, "no", http.StatusInternalServerError)
 		default:
 			http.NotFound(w, r)

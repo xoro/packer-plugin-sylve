@@ -101,9 +101,9 @@ func serveCreateVMFlow(t *testing.T, vmName string, vmRID int, vmID int) *httpte
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -142,9 +142,9 @@ func TestStepCreateVM_Run_UpdateBootOrderWarning(t *testing.T) {
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			http.Error(w, "no", http.StatusInternalServerError)
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -246,9 +246,9 @@ func TestStepCreateVM_Run_SuccessWithNoNetworks(t *testing.T) {
 				VNCPort:   5900,
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -412,9 +412,9 @@ func TestStepCreateVM_Run_RIDRetryThenSuccess(t *testing.T) {
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -734,9 +734,9 @@ func TestStepCreateVM_Run_ListVMsSimpleTransientErrorsDuringPoll(t *testing.T) {
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -809,9 +809,9 @@ func TestStepCreateVM_Run_GetVMByRIDRefetchAfterDisableStartAtBootFails(t *testi
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -846,8 +846,8 @@ func TestStepCreateVM_Run_GetVMByRIDRefetchAfterDisableStartAtBootFails(t *testi
 	if atomic.LoadInt32(&getVMByRIDCalls) != 2 {
 		t.Fatalf("expected 2 GetVMByRID calls, got %d", getVMByRIDCalls)
 	}
-	if name := state.Get("iso_storage_name"); name != "cdrom" {
-		t.Fatalf("iso_storage_name = %v, want cdrom", name)
+	if id := state.Get("iso_storage_id"); id != 1 {
+		t.Fatalf("iso_storage_id = %v, want 1", id)
 	}
 }
 
@@ -887,9 +887,9 @@ func TestStepCreateVM_Run_StaleArtifactsRetryThenSuccess(t *testing.T) {
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -963,9 +963,9 @@ func TestStepCreateVM_Run_ListVMSimpleErrorThenSuccess(t *testing.T) {
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -1035,9 +1035,9 @@ func TestStepCreateVM_Run_DisableStartAtBootWarning(t *testing.T) {
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			http.Error(w, "disable startAtBoot failed", http.StatusInternalServerError)
 		default:
 			http.NotFound(w, r)
@@ -1110,9 +1110,9 @@ func TestStepCreateVM_Run_RefetchVMFailsAfterBootOrder(t *testing.T) {
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)
@@ -1185,9 +1185,9 @@ func TestStepCreateVM_Run_SkipsVNCPortWhenFirstPortClaimedInSylve(t *testing.T) 
 				VNCResolution: "1024x768",
 			}
 			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
-		case r.URL.Path == "/api/vm/storage/update" && r.Method == http.MethodPut:
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
-		case strings.HasPrefix(r.URL.Path, "/api/vm/options/boot-order/") && r.Method == http.MethodPut:
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
 			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
 		default:
 			http.NotFound(w, r)

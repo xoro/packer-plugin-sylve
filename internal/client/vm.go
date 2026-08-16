@@ -205,100 +205,91 @@ func (c *Client) GetSimpleVMByRID(rid uint) (*SimpleVM, error) {
 	return &resp.Data, nil
 }
 
-// StartVM calls POST /api/vm/start/:rid.
+// performVMAction calls POST /api/vm/:rid/actions/:action (start, stop,
+// shutdown, or reboot). Sylve routes all VM lifecycle actions through this
+// single endpoint as of the REST-semantics refactor; the older dedicated
+// /vm/start/:rid and /vm/stop/:rid endpoints no longer exist.
+func (c *Client) performVMAction(rid uint, action string) error {
+	path := fmt.Sprintf("/vm/%d/actions/%s", rid, action)
+	var resp APIResponse[interface{}]
+	if err := c.post(path, nil, &resp); err != nil {
+		return fmt.Errorf("%s VM rid=%d: %w", action, rid, err)
+	}
+	return nil
+}
+
+// StartVM calls POST /api/vm/:rid/actions/start.
 func (c *Client) StartVM(rid uint) error {
-	path := fmt.Sprintf("/vm/start/%d", rid)
-	var resp APIResponse[interface{}]
-	if err := c.post(path, nil, &resp); err != nil {
-		return fmt.Errorf("start VM rid=%d: %w", rid, err)
-	}
-	return nil
+	return c.performVMAction(rid, "start")
 }
 
-// StopVM calls POST /api/vm/stop/:rid.
+// StopVM calls POST /api/vm/:rid/actions/stop.
 func (c *Client) StopVM(rid uint) error {
-	path := fmt.Sprintf("/vm/stop/%d", rid)
-	var resp APIResponse[interface{}]
-	if err := c.post(path, nil, &resp); err != nil {
-		return fmt.Errorf("stop VM rid=%d: %w", rid, err)
-	}
-	return nil
+	return c.performVMAction(rid, "stop")
 }
 
-// GetVMLogs calls GET /api/vm/logs/:rid and returns the last 512 lines of the bhyve log.
+// GetVMLogs calls GET /api/vm/:rid/logs and returns the last 512 lines of the bhyve log.
 func (c *Client) GetVMLogs(rid uint) (string, error) {
 	type logsData struct {
 		Logs string `json:"logs"`
 	}
 	var resp APIResponse[logsData]
-	path := fmt.Sprintf("/vm/logs/%d", rid)
+	path := fmt.Sprintf("/vm/%d/logs", rid)
 	if err := c.get(path, &resp); err != nil {
 		return "", fmt.Errorf("get VM logs rid=%d: %w", rid, err)
 	}
 	return resp.Data.Logs, nil
 }
 
-// StorageUpdateRequest is the body sent to PUT /api/vm/storage/update.
-// For DiskImage (ISO) storages, Size may be nil.
+// StorageUpdateRequest is the body sent to PATCH /api/vm/:rid/storage/:storageId.
+// For DiskImage (ISO) storages, Size may be nil. RID and storage ID are now
+// path parameters, not body fields.
 type StorageUpdateRequest struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	Emulation string `json:"emulation"`
-	BootOrder *int   `json:"bootOrder,omitempty"`
-	Enable    *bool  `json:"enable,omitempty"`
+	BootOrder *int  `json:"bootOrder,omitempty"`
+	Enable    *bool `json:"enable,omitempty"`
 }
 
-// UpdateStorageBootOrder calls PUT /api/vm/storage/update to change the boot
-// order of a storage device without modifying any other property.
-func (c *Client) UpdateStorageBootOrder(storageID int, name, emulation string, bootOrder int) error {
-	req := StorageUpdateRequest{
-		ID:        storageID,
-		Name:      name,
-		Emulation: emulation,
-		BootOrder: &bootOrder,
-	}
+// UpdateStorageBootOrder calls PATCH /api/vm/:rid/storage/:storageId to change
+// the boot order of a storage device without modifying any other property.
+func (c *Client) UpdateStorageBootOrder(rid uint, storageID int, bootOrder int) error {
+	req := StorageUpdateRequest{BootOrder: &bootOrder}
 	var resp APIResponse[interface{}]
-	if err := c.put("/vm/storage/update", req, &resp); err != nil {
-		return fmt.Errorf("UpdateStorageBootOrder id=%d: %w", storageID, err)
+	path := fmt.Sprintf("/vm/%d/storage/%d", rid, storageID)
+	if err := c.patch(path, req, &resp); err != nil {
+		return fmt.Errorf("UpdateStorageBootOrder rid=%d id=%d: %w", rid, storageID, err)
 	}
 	return nil
 }
 
-// NetworkDetachRequest is the body sent to POST /api/vm/network/detach.
-type NetworkDetachRequest struct {
-	RID       uint `json:"rid"`
-	NetworkID uint `json:"networkId"`
-}
-
-// DetachVMNetwork calls POST /api/vm/network/detach to remove a NIC database
-// record from the VM. When the NIC was created with enable=false it is never
-// added to the stored libvirt XML; Sylve's NetworkDetach handler detects this
-// and deletes the database record only (without touching the XML), returning
-// success. This makes it safe to call for any network record, including those
-// that were never written to the stored XML.
+// DetachVMNetwork calls DELETE /api/vm/:rid/networks/:networkId to remove a
+// NIC database record from the VM. When the NIC was created with
+// enable=false it is never added to the stored libvirt XML; Sylve's
+// NetworkDetach handler detects this and deletes the database record only
+// (without touching the XML), returning success. This makes it safe to call
+// for any network record, including those that were never written to the
+// stored XML.
 func (c *Client) DetachVMNetwork(rid, networkID uint) error {
-	req := NetworkDetachRequest{RID: rid, NetworkID: networkID}
 	var resp APIResponse[interface{}]
-	if err := c.post("/vm/network/detach", req, &resp); err != nil {
+	path := fmt.Sprintf("/vm/%d/networks/%d", rid, networkID)
+	if err := c.deleteWithResponse(path, &resp); err != nil {
 		return fmt.Errorf("DetachVMNetwork rid=%d networkID=%d: %w", rid, networkID, err)
 	}
 	return nil
 }
 
-// NetworkAttachRequest is the body sent to POST /api/vm/network/attach.
+// NetworkAttachRequest is the body sent to POST /api/vm/:rid/networks.
 type NetworkAttachRequest struct {
-	RID        uint   `json:"rid"`
 	SwitchName string `json:"switchName"`
 	Emulation  string `json:"emulation"`
 	MacID      *uint  `json:"macId,omitempty"`
 }
 
-// ReattachVMNetwork calls POST /api/vm/network/attach to add a fresh NIC
+// ReattachVMNetwork calls POST /api/vm/:rid/networks to add a fresh NIC
 // record to the VM and write the NIC element into the stored libvirt XML.
-// Unlike PUT /vm/network/update, NetworkAttach unconditionally writes the NIC
-// into the stored domain XML regardless of the enable flag. The next
-// DomainCreate (vm start) therefore includes the virtio-net device in the
-// bhyve command line and the guest receives a DHCP lease as expected.
+// Unlike PATCH /vm/:rid/networks/:networkId, NetworkAttach unconditionally
+// writes the NIC into the stored domain XML regardless of the enable flag.
+// The next DomainCreate (vm start) therefore includes the virtio-net device
+// in the bhyve command line and the guest receives a DHCP lease as expected.
 //
 // macObjectID may be nil; if omitted Sylve generates a new random MAC address.
 // Pass the original MAC object ID to preserve the MAC address that was
@@ -306,38 +297,35 @@ type NetworkAttachRequest struct {
 // DHCP lease.
 func (c *Client) ReattachVMNetwork(rid uint, switchName, emulation string, macObjectID *uint) error {
 	req := NetworkAttachRequest{
-		RID:        rid,
 		SwitchName: switchName,
 		Emulation:  emulation,
 		MacID:      macObjectID,
 	}
 	var resp APIResponse[interface{}]
-	if err := c.post("/vm/network/attach", req, &resp); err != nil {
+	path := fmt.Sprintf("/vm/%d/networks", rid)
+	if err := c.post(path, req, &resp); err != nil {
 		return fmt.Errorf("ReattachVMNetwork rid=%d switch=%q: %w", rid, switchName, err)
 	}
 	return nil
 }
 
-// DisableISOStorage calls PUT /api/vm/storage/update to set enable=false on an
-// ISO/CD storage device. This causes SyncVMDisks to omit the CD from the bhyve
-// command line on the next start, forcing UEFI to boot from the zvol regardless
-// of whatever BootOrder entries the UEFI NVRAM accumulated during the first boot.
-func (c *Client) DisableISOStorage(storageID int, name, emulation string) error {
+// DisableISOStorage calls PATCH /api/vm/:rid/storage/:storageId to set
+// enable=false on an ISO/CD storage device. This causes SyncVMDisks to omit
+// the CD from the bhyve command line on the next start, forcing UEFI to boot
+// from the zvol regardless of whatever BootOrder entries the UEFI NVRAM
+// accumulated during the first boot.
+func (c *Client) DisableISOStorage(rid uint, storageID int) error {
 	enabled := false
-	req := StorageUpdateRequest{
-		ID:        storageID,
-		Name:      name,
-		Emulation: emulation,
-		Enable:    &enabled,
-	}
+	req := StorageUpdateRequest{Enable: &enabled}
 	var resp APIResponse[interface{}]
-	if err := c.put("/vm/storage/update", req, &resp); err != nil {
-		return fmt.Errorf("DisableISOStorage id=%d: %w", storageID, err)
+	path := fmt.Sprintf("/vm/%d/storage/%d", rid, storageID)
+	if err := c.patch(path, req, &resp); err != nil {
+		return fmt.Errorf("DisableISOStorage rid=%d id=%d: %w", rid, storageID, err)
 	}
 	return nil
 }
 
-// DisableStartAtBoot calls PUT /api/vm/options/boot-order/:rid to set
+// DisableStartAtBoot calls PUT /api/vm/:rid/options/boot-order to set
 // startAtBoot=false on the VM. Sylve auto-restarts VMs with startAtBoot=true
 // after every stop; disabling it ensures the plugin controls all restarts and
 // prevents Sylve from firing a competing restart (with the ISO still enabled)
@@ -353,7 +341,7 @@ func (c *Client) DisableStartAtBoot(rid uint) error {
 		BootOrder:   &bootOrder,
 	}
 	var resp APIResponse[interface{}]
-	path := fmt.Sprintf("/vm/options/boot-order/%d", rid)
+	path := fmt.Sprintf("/vm/%d/options/boot-order", rid)
 	if err := c.put(path, req, &resp); err != nil {
 		return fmt.Errorf("DisableStartAtBoot rid=%d: %w", rid, err)
 	}

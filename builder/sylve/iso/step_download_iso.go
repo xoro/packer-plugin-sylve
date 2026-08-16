@@ -88,10 +88,23 @@ func (s *StepDownloadISO) Run(ctx context.Context, state multistep.StateBag) mul
 			state.Put("iso_uuid", existing.UUID)
 			return multistep.ActionContinue
 		case client.DownloadStatusFailed:
-			err := fmt.Errorf("existing ISO download failed: %s", existing.Error)
-			state.Put("error", err)
-			ui.Error(err.Error())
-			return multistep.ActionHalt
+			// A previously failed download (e.g. a transient network error on an
+			// earlier build) leaves a stale "failed" record that Sylve never
+			// retries on its own. Clear it and fall through to trigger a fresh
+			// download instead of failing the build for a stale error.
+			ui.Say(fmt.Sprintf("Clearing stale failed ISO download (id=%d, error=%q) and retrying...", existing.ID, existing.Error))
+			if delErr := c.DeleteDownload(existing.ID); delErr != nil {
+				err := fmt.Errorf("clear stale failed ISO download: %w", delErr)
+				state.Put("error", err)
+				ui.Error(err.Error())
+				return multistep.ActionHalt
+			}
+			if err := c.TriggerDownload(s.Config.ISODownloadURL); err != nil {
+				err = fmt.Errorf("trigger ISO download: %w", err)
+				state.Put("error", err)
+				ui.Error(err.Error())
+				return multistep.ActionHalt
+			}
 		default:
 			ui.Say(fmt.Sprintf("ISO download already in progress (status=%s), waiting...", existing.Status))
 		}

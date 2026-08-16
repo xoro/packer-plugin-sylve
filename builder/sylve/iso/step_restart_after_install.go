@@ -139,10 +139,8 @@ shutoffLoop:
 	// Disabling the ISO causes Sylve's SyncVMDisks to omit the CD from the
 	// bhyve command line entirely, so EDK2 has no choice but to boot the zvol.
 	if isoID, ok := state.Get("iso_storage_id").(int); ok && isoID != 0 {
-		isoName, _ := state.Get("iso_storage_name").(string)
-		isoEmulation, _ := state.Get("iso_storage_emulation").(string)
 		ui.Say(fmt.Sprintf("Disabling ISO storage id=%d before installed-OS boot...", isoID))
-		if err := c.DisableISOStorage(isoID, isoName, isoEmulation); err != nil {
+		if err := c.DisableISOStorage(rid, isoID); err != nil {
 			// Non-fatal: log and proceed; worst case we get a CD-boot again.
 			ui.Say(fmt.Sprintf("Warning: could not disable ISO storage id=%d: %s", isoID, err))
 		}

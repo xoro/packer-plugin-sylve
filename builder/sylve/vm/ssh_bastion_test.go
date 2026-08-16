@@ -767,7 +767,7 @@ func TestStepStartVM_Cleanup_PollErrorThenStopped(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/105", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/105/actions/stop", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -814,7 +814,7 @@ func TestStepStartVM_Run_LogsOnSuccess(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/start/106", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/106/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := map[string]interface{}{"status": "success", "data": nil}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -827,7 +827,7 @@ func TestStepStartVM_Run_LogsOnSuccess(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/logs/106", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/106/logs", func(w http.ResponseWriter, _ *http.Request) {
 		resp := map[string]interface{}{
 			"status": "success",
 			"data":   map[string]string{"logs": "bhyve started"},
@@ -877,7 +877,7 @@ func TestStepStartVM_Run_LogsDomainStateTransitions(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/start/107", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/107/actions/start", func(w http.ResponseWriter, _ *http.Request) {
 		resp := map[string]interface{}{"status": "success", "data": nil}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -895,7 +895,7 @@ func TestStepStartVM_Run_LogsDomainStateTransitions(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/logs/107", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/107/logs", func(w http.ResponseWriter, _ *http.Request) {
 		resp := map[string]interface{}{"status": "success", "data": map[string]string{}}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -936,7 +936,7 @@ func TestStepStartVM_Cleanup_StoppedAfterSuccessfulStop(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/108", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/108/actions/stop", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return

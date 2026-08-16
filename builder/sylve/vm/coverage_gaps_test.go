@@ -570,7 +570,7 @@ func TestStepStartVM_Cleanup_StopTimeoutWarns(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/stop/104", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/104/actions/stop", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return

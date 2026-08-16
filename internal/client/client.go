@@ -160,7 +160,17 @@ func (c *Client) put(path string, body, out interface{}) error {
 	return c.do(http.MethodPut, path, body, out)
 }
 
-// delete is a convenience wrapper for DELETE requests.
+// patch is a convenience wrapper for PATCH requests.
+func (c *Client) patch(path string, body, out interface{}) error {
+	return c.do(http.MethodPatch, path, body, out)
+}
+
+// delete is a convenience wrapper for DELETE requests that discards the response body.
 func (c *Client) delete(path string) error {
 	return c.do(http.MethodDelete, path, nil, nil)
+}
+
+// deleteWithResponse is a convenience wrapper for DELETE requests that decodes the response body.
+func (c *Client) deleteWithResponse(path string, out interface{}) error {
+	return c.do(http.MethodDelete, path, nil, out)
 }
