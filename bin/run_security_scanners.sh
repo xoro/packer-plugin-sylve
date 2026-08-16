@@ -23,6 +23,7 @@
 #    - Runs trivy to scan for vulnerabilities, misconfigs, and secrets
 #    - Skips packer.log (local Packer output can trigger false-positive secret findings)
 #    - Uses --exit-code 1 so any reported finding fails the script (not only scan errors)
+#    - Uses .trivyignore to ignore unreachable/unfixable CVEs (each entry documents why)
 #
 # 4. Static Security Analysis:
 #    - Runs semgrep with the auto ruleset to detect security issues in Go code
