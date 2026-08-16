@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) 2026, Timo Pallach (timo@pallach.de).
+
+# GO-2026-5932: golang.org/x/crypto/openpgp is unmaintained and unsafe by
+# design. This finding is a module-level flag on golang.org/x/crypto itself,
+# but the plugin (and its dependency chain) never imports the openpgp
+# subpackage: `go mod why golang.org/x/crypto/openpgp` reports "main module
+# does not need package golang.org/x/crypto/openpgp". No fix exists for this
+# advisory since the openpgp package is permanently deprecated. Attack
+# surface is zero because the vulnerable code path is unreachable.
+GO-2026-5932
