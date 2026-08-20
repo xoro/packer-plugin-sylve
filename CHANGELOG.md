@@ -3,6 +3,28 @@
 
 # Changelog
 
+## [0.2.0] - 2026-08-20
+
+### Bug Fixes
+
+- _(iso)_ Fail fast when Sylve stop lifecycle task is wedged
+- _(client)_ Update REST routes and payloads for Sylve's REST-semantics refactor
+
+### Other
+
+- _(deps)_ Update Go module dependencies
+- _(deps)_ Bump go.mod to go 1.26.6
+- _(deps)_ Bump go.mod go directive automatically in update_go_mods.sh
+
+### Documentation
+
+- _(security)_ Document .trivyignore mechanism in scanner script header
+
+### Miscellaneous Tasks
+
+- Remove project-local caveman skills, use global integration
+- Pin GitHub Actions to commit SHAs instead of mutable tags
+
 ## [0.1.12] - 2026-05-30
 
 ### Bug Fixes
