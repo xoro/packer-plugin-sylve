@@ -178,6 +178,32 @@ func TestTriggerDownload_Error(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// DeleteDownload
+// ---------------------------------------------------------------------------
+
+func TestDeleteDownload_Success(t *testing.T) {
+	c, srv := serveVM(t, "/api/utilities/downloads/75", http.MethodDelete, func(w http.ResponseWriter, r *http.Request) {
+		okJSON(w, APIResponse[interface{}]{Status: "ok"})
+	})
+	defer srv.Close()
+
+	if err := c.DeleteDownload(75); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDeleteDownload_Error(t *testing.T) {
+	c, srv := serveVM(t, "/api/utilities/downloads/75", http.MethodDelete, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	})
+	defer srv.Close()
+
+	if err := c.DeleteDownload(75); err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // ListDownloads
 // ---------------------------------------------------------------------------
 
