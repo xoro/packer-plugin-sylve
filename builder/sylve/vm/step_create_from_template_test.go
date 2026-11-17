@@ -24,7 +24,7 @@ func TestStepCreateFromTemplate_Success(t *testing.T) {
 	mux := http.NewServeMux()
 
 	// ListTemplatesSimple — return one template.
-	mux.HandleFunc("/api/vm/templates/simple", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/templates", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[[]client.SimpleTemplate]{
 			Status: "success",
 			Data:   []client.SimpleTemplate{{ID: 7, Name: "base-template", SourceVMName: "base-vm"}},
@@ -52,7 +52,7 @@ func TestStepCreateFromTemplate_Success(t *testing.T) {
 	})
 
 	// CreateVMFromTemplate
-	mux.HandleFunc("/api/vm/templates/create/7", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/vm/templates/7/vms", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -131,7 +131,7 @@ func TestStepCreateFromTemplate_Success(t *testing.T) {
 
 func TestStepCreateFromTemplate_TemplateNotFound(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/templates/simple", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/templates", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[[]client.SimpleTemplate]{
 			Status: "success",
 			Data:   []client.SimpleTemplate{{ID: 1, Name: "other"}},
@@ -157,7 +157,7 @@ func TestStepCreateFromTemplate_TemplateNotFound(t *testing.T) {
 
 func TestStepCreateFromTemplate_RIDAllocationFailure(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/templates/simple", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/templates", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[[]client.SimpleTemplate]{
 			Status: "success",
 			Data:   []client.SimpleTemplate{{ID: 1, Name: "tpl"}},
@@ -187,7 +187,7 @@ func TestStepCreateFromTemplate_RIDAllocationFailure(t *testing.T) {
 
 func TestStepCreateFromTemplate_CreateError(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/templates/simple", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/templates", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[[]client.SimpleTemplate]{
 			Status: "success",
 			Data:   []client.SimpleTemplate{{ID: 5, Name: "tpl"}},
@@ -200,7 +200,7 @@ func TestStepCreateFromTemplate_CreateError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/templates/create/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/templates/5/vms", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "conflict", http.StatusConflict)
 	})
 	srv := httptest.NewTLSServer(mux)
@@ -230,7 +230,7 @@ func TestStepCreateFromTemplate_WaitForVM_Timeout(t *testing.T) {
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/templates/simple", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/templates", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[[]client.SimpleTemplate]{
 			Status: "success",
 			Data:   []client.SimpleTemplate{{ID: 5, Name: "tpl"}},
@@ -243,7 +243,7 @@ func TestStepCreateFromTemplate_WaitForVM_Timeout(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/templates/create/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/templates/5/vms", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -384,7 +384,7 @@ func TestStepCreateFromTemplate_WaitForVM_LifecycleTaskActive(t *testing.T) {
 
 	var taskPollCount atomic.Int32
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/vm/templates/simple", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/templates", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[[]client.SimpleTemplate]{
 			Status: "success",
 			Data:   []client.SimpleTemplate{{ID: 5, Name: "tpl"}},
@@ -397,7 +397,7 @@ func TestStepCreateFromTemplate_WaitForVM_LifecycleTaskActive(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
-	mux.HandleFunc("/api/vm/templates/create/5", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/vm/templates/5/vms", func(w http.ResponseWriter, _ *http.Request) {
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)

@@ -160,9 +160,14 @@ password pair. Exactly one authentication method must be provided.
 
 **Required**:
 
-- `vm_name` (string) - Name of the existing VM registered in Sylve to use as
-  the build base. The builder looks up the VM by name and fails if it is not
-  found.
+- `source_template` (string) - Name of the Sylve VM template to create the
+  build VM from, e.g. one saved by [`sylve-iso`][docs-sylve-iso] with
+  `template_name`. The builder looks up the template by name and fails if it is
+  not found.
+
+- `vm_name` (string) - Name of the VM the builder creates from
+  `source_template`. Supports `{{build_type}}`, `{{build_name}}` and
+  `{{uuid}}`.
 
 ### Snapshot Configuration
 

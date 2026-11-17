@@ -5,24 +5,26 @@ package client
 
 import "fmt"
 
-// SimpleTemplate is the lightweight object returned by GET /api/vm/templates/simple.
+// SimpleTemplate is the lightweight object returned by GET /api/vm/templates.
 type SimpleTemplate struct {
 	ID           uint   `json:"id"`
 	Name         string `json:"name"`
 	SourceVMName string `json:"sourceVmName"`
 }
 
-// CreateFromTemplateRequest is the body sent to POST /api/vm/templates/create/:id.
+// CreateFromTemplateRequest is the body sent to POST /api/vm/templates/:id/vms.
+// Sylve defaults the omitted mode to "single" and clones each disk into the
+// pool the template was captured from when no storagePools mapping is sent.
 type CreateFromTemplateRequest struct {
 	Name string `json:"name"`
 	RID  uint   `json:"rid"`
 }
 
-// ListTemplatesSimple calls GET /api/vm/templates/simple and returns all
-// templates as lightweight objects.
+// ListTemplatesSimple calls GET /api/vm/templates and returns all templates as
+// lightweight objects.
 func (c *Client) ListTemplatesSimple() ([]SimpleTemplate, error) {
 	var resp APIResponse[[]SimpleTemplate]
-	if err := c.get("/vm/templates/simple", &resp); err != nil {
+	if err := c.get("/vm/templates", &resp); err != nil {
 		return nil, fmt.Errorf("list templates simple: %w", err)
 	}
 	return resp.Data, nil
@@ -44,11 +46,12 @@ func (c *Client) FindTemplateByName(name string) (*SimpleTemplate, error) {
 	return nil, fmt.Errorf("find template %q: template not found", name)
 }
 
-// CreateVMFromTemplate calls POST /api/vm/templates/create/:id to create a
-// new VM from the given template. The request specifies the VM name and the
-// RID to assign to the new VM.
+// CreateVMFromTemplate calls POST /api/vm/templates/:id/vms to create a new VM
+// from the given template. The request specifies the VM name and the RID to
+// assign to the new VM. Sylve queues the clone as a lifecycle task (HTTP 202),
+// so the VM appears only once that task has run; callers wait for it.
 func (c *Client) CreateVMFromTemplate(templateID uint, req CreateFromTemplateRequest) error {
-	path := fmt.Sprintf("/vm/templates/create/%d", templateID)
+	path := fmt.Sprintf("/vm/templates/%d/vms", templateID)
 	var resp APIResponse[interface{}]
 	if err := c.post(path, req, &resp); err != nil {
 		return fmt.Errorf("create VM from template id=%d: %w", templateID, err)

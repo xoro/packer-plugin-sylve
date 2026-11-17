@@ -12,7 +12,7 @@ import (
 
 func TestListTemplatesSimple_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/vm/templates/simple" || r.Method != http.MethodGet {
+		if r.URL.Path != "/api/vm/templates" || r.Method != http.MethodGet {
 			http.NotFound(w, r)
 			return
 		}
@@ -56,7 +56,7 @@ func TestListTemplatesSimple_Error(t *testing.T) {
 
 func TestFindTemplateByName_Found(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/vm/templates/simple" {
+		if r.URL.Path != "/api/vm/templates" {
 			http.NotFound(w, r)
 			return
 		}
@@ -84,7 +84,7 @@ func TestFindTemplateByName_Found(t *testing.T) {
 
 func TestFindTemplateByName_NotFound(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/vm/templates/simple" {
+		if r.URL.Path != "/api/vm/templates" {
 			http.NotFound(w, r)
 			return
 		}
@@ -119,7 +119,7 @@ func TestFindTemplateByName_ListError(t *testing.T) {
 
 func TestCreateVMFromTemplate_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/vm/templates/create/5" || r.Method != http.MethodPost {
+		if r.URL.Path != "/api/vm/templates/5/vms" || r.Method != http.MethodPost {
 			http.NotFound(w, r)
 			return
 		}
