@@ -59,6 +59,63 @@ func (c *Client) CreateVMFromTemplate(templateID uint, req CreateFromTemplateReq
 	return nil
 }
 
+// ConvertToTemplateRequest is the body sent to POST /api/vm/:rid/templates.
+type ConvertToTemplateRequest struct {
+	Name string `json:"name"`
+}
+
+// templateCaptureTask is the data of Sylve's HTTP 202 answer to
+// POST /api/vm/:rid/templates: the lifecycle task that performs the conversion.
+type templateCaptureTask struct {
+	TaskID uint `json:"taskId"`
+}
+
+// LifecycleTask is one Sylve guest lifecycle task as listed by
+// GET /api/tasks/lifecycle/recent.
+type LifecycleTask struct {
+	ID     uint   `json:"id"`
+	Status string `json:"status"`
+	Error  string `json:"error"`
+}
+
+// Lifecycle task states that end a task; "queued" and "running" do not.
+const (
+	LifecycleTaskSuccess = "success"
+	LifecycleTaskFailed  = "failed"
+)
+
+// ConvertVMToTemplate calls POST /api/vm/:rid/templates to save the VM with
+// the given RID as a VM template called name. Sylve requires the VM to be shut
+// off and the name to be unique, and queues the conversion as a lifecycle task.
+// Returns the ID of that task, which TemplateTask reports on; returns an error
+// when Sylve rejects the request (e.g. the VM is running or the name is taken).
+func (c *Client) ConvertVMToTemplate(rid uint, name string) (uint, error) {
+	var resp APIResponse[templateCaptureTask]
+	path := fmt.Sprintf("/vm/%d/templates", rid)
+	if err := c.post(path, ConvertToTemplateRequest{Name: name}, &resp); err != nil {
+		return 0, fmt.Errorf("convert VM rid=%d to template %q: %w", rid, name, err)
+	}
+	return resp.Data.TaskID, nil
+}
+
+// TemplateTask returns the VM template lifecycle task with ID taskID of the
+// guest guestID (the source VM's RID for a conversion) from
+// GET /api/tasks/lifecycle/recent. Sylve 0.3.1 has no endpoint for a single
+// task. Returns an error when the request fails or the task is not listed.
+func (c *Client) TemplateTask(guestID, taskID uint) (*LifecycleTask, error) {
+	var resp APIResponse[[]LifecycleTask]
+	path := fmt.Sprintf("/tasks/lifecycle/recent?guestType=vm-template&guestId=%d&limit=200", guestID)
+	if err := c.get(path, &resp); err != nil {
+		return nil, fmt.Errorf("get template task id=%d: %w", taskID, err)
+	}
+	for i := range resp.Data {
+		if resp.Data[i].ID == taskID {
+			return &resp.Data[i], nil
+		}
+	}
+	return nil, fmt.Errorf("get template task id=%d: task not found", taskID)
+}
+
 // FindNextFreeRID scans the existing VMs and returns the first RID in the
 // range 1-9999 that is not in use. Returns an error when no free RID exists.
 func (c *Client) FindNextFreeRID() (uint, error) {

@@ -215,3 +215,76 @@ func TestFindNextFreeRID_AllUsed(t *testing.T) {
 		t.Fatal("expected error when all RIDs are used")
 	}
 }
+
+func TestConvertVMToTemplate_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body ConvertToTemplateRequest
+		if r.URL.Path != "/api/vm/7/templates" || r.Method != http.MethodPost ||
+			json.NewDecoder(r.Body).Decode(&body) != nil || body.Name != "base" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(APIResponse[templateCaptureTask]{Status: "success", Data: templateCaptureTask{TaskID: 42}})
+	}))
+	t.Cleanup(srv.Close)
+
+	taskID, err := newTestClient(srv.URL, "tok").ConvertVMToTemplate(7, "base")
+	if err != nil || taskID != 42 {
+		t.Fatalf("ConvertVMToTemplate = %d, %v; want 42, nil", taskID, err)
+	}
+}
+
+func TestConvertVMToTemplate_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"error":"vm_must_be_shut_off"}`, http.StatusConflict)
+	}))
+	t.Cleanup(srv.Close)
+
+	if _, err := newTestClient(srv.URL, "tok").ConvertVMToTemplate(7, "base"); err == nil {
+		t.Fatal("ConvertVMToTemplate: want error for HTTP 409, got nil")
+	}
+}
+
+// templateTaskServer answers GET /api/tasks/lifecycle/recent for vm-template
+// guest 7 with the given tasks.
+func templateTaskServer(t *testing.T, tasks []LifecycleTask) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if r.URL.Path != "/api/tasks/lifecycle/recent" || q.Get("guestType") != "vm-template" || q.Get("guestId") != "7" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(APIResponse[[]LifecycleTask]{Status: "success", Data: tasks})
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestTemplateTask_Found(t *testing.T) {
+	srv := templateTaskServer(t, []LifecycleTask{{ID: 41, Status: "success"}, {ID: 42, Status: "failed", Error: "boom"}})
+
+	task, err := newTestClient(srv.URL, "tok").TemplateTask(7, 42)
+	if err != nil || task.Status != LifecycleTaskFailed || task.Error != "boom" {
+		t.Fatalf("TemplateTask = %+v, %v; want task 42 failed with boom", task, err)
+	}
+}
+
+func TestTemplateTask_NotListed(t *testing.T) {
+	srv := templateTaskServer(t, []LifecycleTask{{ID: 41, Status: "success"}})
+
+	if _, err := newTestClient(srv.URL, "tok").TemplateTask(7, 42); err == nil {
+		t.Fatal("TemplateTask: want error for an unlisted task, got nil")
+	}
+}
+
+func TestTemplateTask_Error(t *testing.T) {
+	srv := templateTaskServer(t, nil)
+
+	if _, err := newTestClient(srv.URL, "tok").TemplateTask(8, 42); err == nil {
+		t.Fatal("TemplateTask: want error for HTTP 404, got nil")
+	}
+}

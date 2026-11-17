@@ -213,6 +213,7 @@ func (b *Builder) defaultISOSteps() []multistep.Step {
 		},
 		new(commonsteps.StepProvision),
 		&StepShutdown{Config: &b.config},
+		&StepConvertToTemplate{Config: &b.config},
 		&sylvecommon.StepDeleteVM{
 			SylveURL:      b.config.SylveURL,
 			SylveToken:    b.config.SylveToken,
@@ -232,16 +233,21 @@ func (b *Builder) buildArtifact(state multistep.StateBag) packersdk.Artifact {
 	if vmRID == 0 {
 		vmRID, _ = state.Get("vm_rid").(uint)
 	}
+	data := map[string]interface{}{
+		"generated_data": state.Get("generated_data"),
+		"SYLVE_VM_RID":   fmt.Sprintf("%d", vmRID),
+		"SYLVE_VNC_PORT": fmt.Sprintf("%d", b.config.VNCPort),
+		"SYLVE_URL":      b.config.SylveURL,
+	}
+	if name, ok := state.Get("template_name").(string); ok {
+		data["SYLVE_TEMPLATE_NAME"] = name
+		data["SYLVE_TEMPLATE_ID"] = fmt.Sprintf("%d", state.Get("template_id"))
+	}
 	return &sylvecommon.Artifact{
 		BuilderID: BuilderID,
 		VMRID:     vmRID,
 		VMID:      vmID,
-		StateData: map[string]interface{}{
-			"generated_data": state.Get("generated_data"),
-			"SYLVE_VM_RID":   fmt.Sprintf("%d", vmRID),
-			"SYLVE_VNC_PORT": fmt.Sprintf("%d", b.config.VNCPort),
-			"SYLVE_URL":      b.config.SylveURL,
-		},
+		StateData: data,
 	}
 }
 

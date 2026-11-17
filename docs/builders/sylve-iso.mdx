@@ -256,6 +256,15 @@ provisioning (e.g. for preseed or kickstart files).
   after a successful build. On error, deletion follows `keep_on_error`; on
   cancellation the VM is always deleted regardless of this setting.
 
+- `template_name` (string) - When set, saves the VM as a Sylve VM template of
+  this name after a successful build and shutdown, so
+  [`sylve-vm`][docs-sylve-vm] builds can start from it with `source_template`.
+  Sylve requires the name to be unique: the build fails when a template of
+  this name already exists. The template keeps its own copy of the disks, so
+  `destroy = true` still deletes the build VM afterwards. The artifact reports
+  the template as `SYLVE_TEMPLATE_NAME` and `SYLVE_TEMPLATE_ID`. Defaults to
+  empty (no template).
+
 - `keep_on_error` (bool) - Whether to keep the VM alive when the build fails.
   Defaults to `false`. Set to `true` to keep the VM running for post-failure
   debugging (equivalent to `-on-error=abort`).
@@ -431,3 +440,4 @@ variables.
 [sylve]: https://github.com/AlchemillaHQ/Sylve
 [docs-communicator-ssh]: https://developer.hashicorp.com/packer/docs/communicators/ssh
 [docs-boot-command]: https://developer.hashicorp.com/packer/docs/templates/hcl_templates/functions/contextual/env
+[docs-sylve-vm]: sylve-vm.mdx

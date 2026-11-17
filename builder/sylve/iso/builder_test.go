@@ -59,11 +59,11 @@ func TestDefaultISOSteps_RestartAfterInstallAddsStep(t *testing.T) {
 	nWithout := len(b.defaultISOSteps())
 	b.config.RestartAfterInstall = true
 	nWith := len(b.defaultISOSteps())
-	if nWithout != 10 {
-		t.Fatalf("len(defaultISOSteps) without restart = %d, want 10", nWithout)
+	if nWithout != 11 {
+		t.Fatalf("len(defaultISOSteps) without restart = %d, want 11", nWithout)
 	}
-	if nWith != 11 {
-		t.Fatalf("len(defaultISOSteps) with restart = %d, want 11", nWith)
+	if nWith != 12 {
+		t.Fatalf("len(defaultISOSteps) with restart = %d, want 12", nWith)
 	}
 }
 
@@ -77,11 +77,11 @@ func TestIsoBuildStepsForRun_NoHookUsesDefaultSteps(t *testing.T) {
 	nWithout := len(b.isoBuildStepsForRun())
 	b.config.RestartAfterInstall = true
 	nWith := len(b.isoBuildStepsForRun())
-	if nWithout != 10 {
-		t.Fatalf("isoBuildStepsForRun without restart = %d, want 10", nWithout)
+	if nWithout != 11 {
+		t.Fatalf("isoBuildStepsForRun without restart = %d, want 11", nWithout)
 	}
-	if nWith != 11 {
-		t.Fatalf("isoBuildStepsForRun with restart = %d, want 11", nWith)
+	if nWith != 12 {
+		t.Fatalf("isoBuildStepsForRun with restart = %d, want 12", nWith)
 	}
 }
 
@@ -462,6 +462,20 @@ func TestBuildArtifact(t *testing.T) {
 	}
 	if a.State("SYLVE_URL") != "https://h:8181" || a.State("SYLVE_VNC_PORT") != "5905" {
 		t.Fatalf("state: %#v / %#v", a.State("SYLVE_URL"), a.State("SYLVE_VNC_PORT"))
+	}
+	if a.State("SYLVE_TEMPLATE_NAME") != nil {
+		t.Fatalf("SYLVE_TEMPLATE_NAME = %#v without a template", a.State("SYLVE_TEMPLATE_NAME"))
+	}
+}
+
+func TestBuildArtifact_NamesTemplate(t *testing.T) {
+	b := &Builder{config: Config{}}
+	state := new(multistep.BasicStateBag)
+	state.Put("template_id", uint(5))
+	state.Put("template_name", "base")
+	a := b.buildArtifact(state).(*sylvecommon.Artifact)
+	if a.State("SYLVE_TEMPLATE_NAME") != "base" || a.State("SYLVE_TEMPLATE_ID") != "5" {
+		t.Fatalf("template state: %#v / %#v", a.State("SYLVE_TEMPLATE_NAME"), a.State("SYLVE_TEMPLATE_ID"))
 	}
 }
 

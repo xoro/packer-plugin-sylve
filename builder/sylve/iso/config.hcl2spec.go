@@ -111,6 +111,7 @@ type FlatConfig struct {
 	ShutdownCommand           *string           `mapstructure:"shutdown_command" cty:"shutdown_command" hcl:"shutdown_command"`
 	RestartAfterInstall       *bool             `mapstructure:"restart_after_install" cty:"restart_after_install" hcl:"restart_after_install"`
 	Destroy                   *bool             `mapstructure:"destroy" cty:"destroy" hcl:"destroy"`
+	TemplateName              *string           `mapstructure:"template_name" cty:"template_name" hcl:"template_name"`
 	KeepOnError               *bool             `mapstructure:"keep_on_error" cty:"keep_on_error" hcl:"keep_on_error"`
 }
 
@@ -227,6 +228,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"shutdown_command":             &hcldec.AttrSpec{Name: "shutdown_command", Type: cty.String, Required: false},
 		"restart_after_install":        &hcldec.AttrSpec{Name: "restart_after_install", Type: cty.Bool, Required: false},
 		"destroy":                      &hcldec.AttrSpec{Name: "destroy", Type: cty.Bool, Required: false},
+		"template_name":                &hcldec.AttrSpec{Name: "template_name", Type: cty.String, Required: false},
 		"keep_on_error":                &hcldec.AttrSpec{Name: "keep_on_error", Type: cty.Bool, Required: false},
 	}
 	return s

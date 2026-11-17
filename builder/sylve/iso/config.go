@@ -183,6 +183,14 @@ type Config struct {
 	// cancellation the VM is deleted regardless of destroy.
 	Destroy bool `mapstructure:"destroy"`
 
+	// TemplateName, when set, saves the VM as a Sylve VM template of this name
+	// after a successful build and shutdown, so sylve-vm builds can start from
+	// it (source_template). Sylve requires the name to be unique: the build fails
+	// when a template of this name already exists. The template keeps its own
+	// copy of the disks, so destroy = true still deletes the build VM afterwards.
+	// Defaults to empty (no template).
+	TemplateName string `mapstructure:"template_name"`
+
 	// KeepOnError controls whether the VM is kept alive when the build fails.
 	// Defaults to false (VM is deleted on error). Set to true to keep the VM
 	// running for post-failure debugging (equivalent to -on-error=abort).
