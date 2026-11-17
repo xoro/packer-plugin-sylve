@@ -3,6 +3,24 @@
 
 # Changelog
 
+## [0.2.1] - 2026-11-17
+
+### Features
+
+- _(iso)_ Save the built VM as a Sylve template with template_name
+- _(iso)_ Add ignore_umsrs for guests that touch unimplemented MSRs
+- _(iso)_ Verify the ISO with iso_checksum before Sylve gets it
+
+### Bug Fixes
+
+- _(client)_ Use Sylve's REST routes for VM templates
+- _(iso)_ Release the VNC port before creating the VM on the Sylve host
+- _(vm)_ Replace characters Sylve rejects in vm_name, as sylve-iso does
+
+### Other
+
+- _(deps)_ Update Go module dependencies
+
 ## [0.2.0] - 2026-08-20
 
 ### Bug Fixes
