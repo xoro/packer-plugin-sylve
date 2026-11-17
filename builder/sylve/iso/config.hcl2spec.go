@@ -84,6 +84,7 @@ type FlatConfig struct {
 	SylveAPILoginTimeout      *string           `mapstructure:"sylve_api_login_timeout" cty:"sylve_api_login_timeout" hcl:"sylve_api_login_timeout"`
 	TLSSkipVerify             *bool             `mapstructure:"tls_skip_verify" cty:"tls_skip_verify" hcl:"tls_skip_verify"`
 	ISODownloadURL            *string           `mapstructure:"iso_download_url" cty:"iso_download_url" hcl:"iso_download_url"`
+	ISOChecksum               *string           `mapstructure:"iso_checksum" cty:"iso_checksum" hcl:"iso_checksum"`
 	VMName                    *string           `mapstructure:"vm_name" cty:"vm_name" hcl:"vm_name"`
 	CPUCores                  *int              `mapstructure:"cpu_cores" cty:"cpu_cores" hcl:"cpu_cores"`
 	CPUSockets                *int              `mapstructure:"cpu_sockets" cty:"cpu_sockets" hcl:"cpu_sockets"`
@@ -202,6 +203,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"sylve_api_login_timeout":      &hcldec.AttrSpec{Name: "sylve_api_login_timeout", Type: cty.String, Required: false},
 		"tls_skip_verify":              &hcldec.AttrSpec{Name: "tls_skip_verify", Type: cty.Bool, Required: false},
 		"iso_download_url":             &hcldec.AttrSpec{Name: "iso_download_url", Type: cty.String, Required: false},
+		"iso_checksum":                 &hcldec.AttrSpec{Name: "iso_checksum", Type: cty.String, Required: false},
 		"vm_name":                      &hcldec.AttrSpec{Name: "vm_name", Type: cty.String, Required: false},
 		"cpu_cores":                    &hcldec.AttrSpec{Name: "cpu_cores", Type: cty.Number, Required: false},
 		"cpu_sockets":                  &hcldec.AttrSpec{Name: "cpu_sockets", Type: cty.Number, Required: false},

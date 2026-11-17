@@ -182,17 +182,29 @@ func (b *Builder) instanceIPFromState(s multistep.StateBag) (string, error) {
 }
 
 func (b *Builder) defaultISOSteps() []multistep.Step {
-	steps := []multistep.Step{
-		// Phase A — ISO install (VNC-driven unattended install)
-		&StepDownloadISO{Config: &b.config},
-
+	// Phase A — ISO install (VNC-driven unattended install). With iso_checksum
+	// the plugin downloads and checks the ISO and uploads it; else Sylve fetches it.
+	steps := []multistep.Step{&StepDownloadISO{Config: &b.config}}
+	if b.config.ISOChecksum != "" {
+		steps = []multistep.Step{
+			&commonsteps.StepDownload{
+				Checksum:    b.config.ISOChecksum,
+				Description: "ISO",
+				ResultKey:   "iso_path",
+				Url:         []string{b.config.ISODownloadURL},
+				Extension:   "iso",
+			},
+			&StepUploadISO{Config: &b.config},
+		}
+	}
+	steps = append(steps,
 		// Serve http_directory so boot commands can reach {{.HTTPIP}}:{{.HTTPPort}}.
 		commonsteps.HTTPServerFromHTTPConfig(&b.config.HTTPConfig),
 
 		&StepCreateVM{Config: &b.config},
 		&StepStartVM{Config: &b.config},
 		&StepVNCBootCommand{Config: &b.config},
-	}
+	)
 
 	// Phase B — OS restart (only when the installer reboots before SSH is ready).
 	if b.config.RestartAfterInstall {

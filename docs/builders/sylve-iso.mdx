@@ -112,6 +112,13 @@ password pair. Exactly one authentication method must be provided.
 
 **Optional**:
 
+- `iso_checksum` (string) - The ISO's sha256 as `"sha256:<64 hex digits>"`. When
+  set, the plugin downloads `iso_download_url` itself (into Packer's cache),
+  checks it, and uploads only a verified file to Sylve, named
+  `sha256-<hex>-<file name>`; a later build reuses that upload, never a file
+  Sylve downloaded by URL. A mismatch fails the build before Sylve gets the
+  file. Defaults to empty: Sylve downloads the ISO itself, unchecked.
+
 - `sylve_url` (string) - Base URL of the Sylve instance including scheme and
   port. Defaults to `https://localhost:8181`. Alternatively set the
   `SYLVE_HOST` environment variable to just the hostname (e.g.

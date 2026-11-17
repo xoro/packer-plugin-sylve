@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -74,6 +75,14 @@ type Config struct {
 	// The plugin triggers the download and polls until status == "done".
 	// Required.
 	ISODownloadURL string `mapstructure:"iso_download_url"`
+
+	// ISOChecksum, when set, is the ISO's sha256 as "sha256:<64 hex digits>".
+	// The plugin then downloads the ISO itself (into Packer's cache), checks it,
+	// and uploads only a verified file to Sylve, named
+	// "sha256-<hex>-<file name>"; a later build reuses that upload. A mismatch
+	// fails the build before Sylve gets the file. Defaults to empty: Sylve
+	// downloads iso_download_url itself, unchecked.
+	ISOChecksum string `mapstructure:"iso_checksum"`
 
 	// VMName is the name prefix for the temporary VM.
 	// A UUID suffix is appended automatically to avoid collisions.
@@ -206,6 +215,10 @@ type Config struct {
 
 	ctx interpolate.Context
 }
+
+// isoChecksumPattern is the only iso_checksum form: the verified upload is
+// named after the sha256.
+var isoChecksumPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 // bootWaitDuration parses BootWait as a time.Duration.
 func (c *Config) bootWaitDuration() (time.Duration, error) {
@@ -366,6 +379,12 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 	}
 	if c.ISODownloadURL == "" {
 		errs = packersdk.MultiErrorAppend(errs, errors.New("iso_download_url is required"))
+	}
+	if c.ISOChecksum != "" {
+		c.ISOChecksum = strings.ToLower(c.ISOChecksum)
+		if !isoChecksumPattern.MatchString(c.ISOChecksum) {
+			errs = packersdk.MultiErrorAppend(errs, errors.New(`iso_checksum must be "sha256:" and 64 hex digits`))
+		}
 	}
 	if c.VNCPortMin < 5900 {
 		errs = packersdk.MultiErrorAppend(errs, errors.New("vnc_port_min must be >= 5900"))
