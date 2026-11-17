@@ -51,12 +51,16 @@ func TestStepCreateFromTemplate_Success(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 
-	// CreateVMFromTemplate
+	// CreateVMFromTemplate; records the name the step sends.
+	var sentName atomic.Value
 	mux.HandleFunc("/api/vm/templates/7/vms", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
 		}
+		var body client.CreateFromTemplateRequest
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		sentName.Store(body.Name)
 		resp := client.APIResponse[interface{}]{Status: "success"}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -102,7 +106,7 @@ func TestStepCreateFromTemplate_Success(t *testing.T) {
 		SylveURL:       srv.URL,
 		TLSSkipVerify:  true,
 		SourceTemplate: "base-template",
-		VMName:         "test-vm",
+		VMName:         "test-vm-8.0",
 	}
 
 	state := newTestState(t)
@@ -110,6 +114,10 @@ func TestStepCreateFromTemplate_Success(t *testing.T) {
 	action := step.Run(context.Background(), state)
 	if action != multistep.ActionContinue {
 		t.Fatalf("expected ActionContinue, got %v; error=%v", action, state.Get("error"))
+	}
+	// Sylve accepts only [a-zA-Z0-9_-] in VM names.
+	if got := sentName.Load(); got != "test-vm-8_0" {
+		t.Errorf("name sent to Sylve = %v, want test-vm-8_0", got)
 	}
 
 	if got, _ := state.Get("vm_rid").(uint); got != rid {

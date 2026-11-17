@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
 
+	sylvecommon "github.com/xoro/packer-plugin-sylve/builder/sylve/common"
 	"github.com/xoro/packer-plugin-sylve/internal/client"
 )
 
@@ -120,7 +120,7 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 
 	isoUUID, _ := state.Get("iso_uuid").(string)
 
-	vmName := regexp.MustCompile(`[^a-zA-Z0-9_-]+`).ReplaceAllString(s.Config.VMName, "_")
+	vmName := sylvecommon.VMName(s.Config.VMName)
 
 	// Select a VNC port not already assigned to any existing Sylve VM.
 	// The listener is kept open and stored in the state bag so the view

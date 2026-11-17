@@ -167,7 +167,9 @@ password pair. Exactly one authentication method must be provided.
 
 - `vm_name` (string) - Name of the VM the builder creates from
   `source_template`. Supports `{{build_type}}`, `{{build_name}}` and
-  `{{uuid}}`.
+  `{{uuid}}`. Sylve accepts only letters, digits, `_` and `-` in VM names, so
+  every run of other characters is replaced by `_` (`clone-8.0` becomes
+  `clone-8_0`), as `sylve-iso` does.
 
 ### Snapshot Configuration
 

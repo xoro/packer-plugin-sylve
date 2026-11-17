@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
+	sylvecommon "github.com/xoro/packer-plugin-sylve/builder/sylve/common"
 	"github.com/xoro/packer-plugin-sylve/internal/client"
 )
 
@@ -47,10 +48,11 @@ func (s *StepCreateFromTemplate) Run(ctx context.Context, state multistep.StateB
 	}
 	log.Printf("[DEBUG] sylve-vm: allocated RID %d for new VM", rid)
 
-	// Create VM from template.
-	ui.Say(fmt.Sprintf("Creating VM %q from template %q (RID %d)...", s.Config.VMName, tmpl.Name, rid))
+	// Create VM from template, under a name Sylve accepts.
+	vmName := sylvecommon.VMName(s.Config.VMName)
+	ui.Say(fmt.Sprintf("Creating VM %q from template %q (RID %d)...", vmName, tmpl.Name, rid))
 	req := client.CreateFromTemplateRequest{
-		Name: s.Config.VMName,
+		Name: vmName,
 		RID:  rid,
 	}
 	if err := c.CreateVMFromTemplate(tmpl.ID, req); err != nil {
@@ -95,8 +97,8 @@ func (s *StepCreateFromTemplate) Run(ctx context.Context, state multistep.StateB
 	}
 
 	log.Printf("[DEBUG] sylve-vm: created VM %q RID=%d ID=%d MAC=%q storages=%d",
-		s.Config.VMName, vm.RID, vm.ID, mac, len(vm.Storages))
-	ui.Say(fmt.Sprintf("VM %q created (RID %d)", s.Config.VMName, vm.RID))
+		vmName, vm.RID, vm.ID, mac, len(vm.Storages))
+	ui.Say(fmt.Sprintf("VM %q created (RID %d)", vmName, vm.RID))
 	return multistep.ActionContinue
 }
 
