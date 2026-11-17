@@ -468,6 +468,13 @@ func (s *StepCreateVM) selectVNCPort(c *client.Client, state multistep.StateBag)
 			continue
 		}
 		s.Config.VNCPort = port
+		if !remoteHost {
+			// Packer runs on the Sylve host: Sylve refuses to create a VM whose VNC
+			// port is bound on its host (409 vnc_port_already_in_use_by_another_service),
+			// and bhyve binds this very port at start. So keep only the check.
+			_ = ln.Close()
+			return nil
+		}
 		state.Put("vnc_view_listener", ln)
 		return nil
 	}

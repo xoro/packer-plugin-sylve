@@ -6,6 +6,7 @@ package iso
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -61,9 +62,50 @@ func TestSelectVNCPort_Success(t *testing.T) {
 	if step.Config.VNCPort != port {
 		t.Fatalf("VNCPort = %d, want %d", step.Config.VNCPort, port)
 	}
-	raw := state.Get("vnc_view_listener")
-	if raw == nil {
-		t.Fatal("expected vnc_view_listener in state")
+	assertVNCPortReleased(t, state, port)
+}
+
+// assertVNCPortReleased fails unless selectVNCPort left no listener in state
+// and port is free again: Packer runs on the Sylve host here, and Sylve refuses
+// a VM whose VNC port is bound on its host.
+func assertVNCPortReleased(t *testing.T, state multistep.StateBag, port int) {
+	t.Helper()
+	if _, ok := state.GetOk("vnc_view_listener"); ok {
+		t.Fatal("vnc_view_listener in state: the chosen port stays bound on the Sylve host")
+	}
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("port %d still bound after selectVNCPort: %v", port, err)
+	}
+	_ = ln.Close()
+}
+
+func TestSelectVNCPort_RemoteKeepsListener(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	oldRemote, oldDial := isRemoteHostForVNCPort, dialTCPForVNCPortProbe
+	t.Cleanup(func() { isRemoteHostForVNCPort, dialTCPForVNCPortProbe = oldRemote, oldDial })
+	isRemoteHostForVNCPort = func(string) bool { return true }
+	dialTCPForVNCPortProbe = func(string, string, time.Duration) (net.Conn, error) {
+		return nil, errors.New("connection refused")
+	}
+
+	api, srv := testHTTPServerListVMs(t, nil)
+	defer srv.Close()
+
+	step := &StepCreateVM{Config: &Config{VNCPortMin: port, VNCPortMax: port, VNCHost: "sylve.example"}}
+	state := new(multistep.BasicStateBag)
+	if err := step.selectVNCPort(api, state); err != nil {
+		t.Fatalf("selectVNCPort: %v", err)
+	}
+	raw, ok := state.GetOk("vnc_view_listener")
+	if !ok {
+		t.Fatal("expected vnc_view_listener in state when Packer runs on another host")
 	}
 	_ = raw.(net.Listener).Close()
 }
@@ -109,7 +151,7 @@ func TestSelectVNCPort_SkipsPortClaimedByVM(t *testing.T) {
 	if step.Config.VNCPort != pHigh {
 		t.Fatalf("VNCPort = %d, want %d (skipped VM port %d)", step.Config.VNCPort, pHigh, pLow)
 	}
-	_ = state.Get("vnc_view_listener").(net.Listener).Close()
+	assertVNCPortReleased(t, state, pHigh)
 }
 
 func TestSelectVNCPort_ListAPIError(t *testing.T) {
@@ -265,7 +307,7 @@ func TestSelectVNCPort_SkipsTimeWaitPort(t *testing.T) {
 	if step.Config.VNCPort != pHigh {
 		t.Fatalf("VNCPort = %d, want %d (should skip TIME_WAIT port %d)", step.Config.VNCPort, pHigh, pLow)
 	}
-	_ = state.Get("vnc_view_listener").(net.Listener).Close()
+	assertVNCPortReleased(t, state, pHigh)
 }
 
 func TestStepCreateVM_Cleanup_SkipsWhenStepVMRIDZero(t *testing.T) {
