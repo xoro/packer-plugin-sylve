@@ -151,6 +151,14 @@ type Config struct {
 	// APIC enables APIC support in the VM. Defaults to true.
 	APIC bool `mapstructure:"apic"`
 
+	// IgnoreUMSRs makes bhyve ignore guest accesses to MSRs it does not
+	// implement (bhyve -w) instead of injecting a general protection fault.
+	// Some guests need it on recent Intel CPUs: OpenBSD 8.0's kernel panics
+	// with "trap type 4" while attaching the CPU without it. Templates saved
+	// with template_name and VMs cloned from them keep the setting.
+	// Defaults to false.
+	IgnoreUMSRs bool `mapstructure:"ignore_umsrs"`
+
 	// BootWait is the duration to wait before sending VNC boot commands.
 	// Defaults to "10s".
 	BootWait string `mapstructure:"boot_wait"`

@@ -144,6 +144,10 @@ type CreateVMRequest struct {
 
 	ACPI *bool `json:"acpi"`
 	APIC *bool `json:"apic"`
+
+	// IgnoreUMSRs makes bhyve ignore guest accesses to MSRs it does not
+	// implement (bhyve -w) instead of injecting a #GP fault.
+	IgnoreUMSRs *bool `json:"ignoreUMSR"`
 }
 
 // CreateVM calls POST /api/vm. On success the response body contains no VM

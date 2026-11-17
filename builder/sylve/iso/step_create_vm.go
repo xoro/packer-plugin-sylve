@@ -173,8 +173,9 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 
 			TimeOffset: s.Config.TimeOffset,
 
-			ACPI: &s.Config.ACPI,
-			APIC: &s.Config.APIC,
+			ACPI:        &s.Config.ACPI,
+			APIC:        &s.Config.APIC,
+			IgnoreUMSRs: &s.Config.IgnoreUMSRs,
 		}
 
 		if dbg, err := json.Marshal(req); err == nil {

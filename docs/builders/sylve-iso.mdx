@@ -154,6 +154,13 @@ password pair. Exactly one authentication method must be provided.
 - `time_offset` (string) - Guest clock offset. `"utc"` (default) or
   `"localtime"`.
 
+- `ignore_umsrs` (bool) - Makes bhyve ignore guest accesses to MSRs it does
+  not implement (bhyve `-w`) instead of injecting a general protection fault.
+  Some guests need it on recent Intel CPUs: OpenBSD 8.0's kernel panics with
+  `trap type 4` while attaching the CPU without it. Templates saved with
+  `template_name`, and VMs cloned from them, keep the setting. Defaults to
+  `false`.
+
 ~> **Note**: ACPI and APIC are always enabled. Bhyve requires both for correct
 guest power management and interrupt routing.
 

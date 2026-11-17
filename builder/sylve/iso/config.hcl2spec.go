@@ -105,6 +105,7 @@ type FlatConfig struct {
 	TimeOffset                *string           `mapstructure:"time_offset" cty:"time_offset" hcl:"time_offset"`
 	ACPI                      *bool             `mapstructure:"acpi" cty:"acpi" hcl:"acpi"`
 	APIC                      *bool             `mapstructure:"apic" cty:"apic" hcl:"apic"`
+	IgnoreUMSRs               *bool             `mapstructure:"ignore_umsrs" cty:"ignore_umsrs" hcl:"ignore_umsrs"`
 	BootWait                  *string           `mapstructure:"boot_wait" cty:"boot_wait" hcl:"boot_wait"`
 	BootKeyInterval           *string           `mapstructure:"boot_key_interval" cty:"boot_key_interval" hcl:"boot_key_interval"`
 	BootCommand               []string          `mapstructure:"boot_command" cty:"boot_command" hcl:"boot_command"`
@@ -222,6 +223,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"time_offset":                  &hcldec.AttrSpec{Name: "time_offset", Type: cty.String, Required: false},
 		"acpi":                         &hcldec.AttrSpec{Name: "acpi", Type: cty.Bool, Required: false},
 		"apic":                         &hcldec.AttrSpec{Name: "apic", Type: cty.Bool, Required: false},
+		"ignore_umsrs":                 &hcldec.AttrSpec{Name: "ignore_umsrs", Type: cty.Bool, Required: false},
 		"boot_wait":                    &hcldec.AttrSpec{Name: "boot_wait", Type: cty.String, Required: false},
 		"boot_key_interval":            &hcldec.AttrSpec{Name: "boot_key_interval", Type: cty.String, Required: false},
 		"boot_command":                 &hcldec.AttrSpec{Name: "boot_command", Type: cty.List(cty.String), Required: false},
