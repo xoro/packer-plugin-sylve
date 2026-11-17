@@ -71,6 +71,8 @@ type FlatConfig struct {
 	WinRMNoProxy              *bool             `mapstructure:"winrm_no_proxy" cty:"winrm_no_proxy" hcl:"winrm_no_proxy"`
 	WinRMPort                 *int              `mapstructure:"winrm_port" cty:"winrm_port" hcl:"winrm_port"`
 	WinRMTimeout              *string           `mapstructure:"winrm_timeout" cty:"winrm_timeout" hcl:"winrm_timeout"`
+	WinRMRetryInterval        *string           `mapstructure:"winrm_retry_interval" cty:"winrm_retry_interval" hcl:"winrm_retry_interval"`
+	WinRMConnectTimeout       *string           `mapstructure:"winrm_connect_timeout" cty:"winrm_connect_timeout" hcl:"winrm_connect_timeout"`
 	WinRMUseSSL               *bool             `mapstructure:"winrm_use_ssl" cty:"winrm_use_ssl" hcl:"winrm_use_ssl"`
 	WinRMInsecure             *bool             `mapstructure:"winrm_insecure" cty:"winrm_insecure" hcl:"winrm_insecure"`
 	WinRMUseNTLM              *bool             `mapstructure:"winrm_use_ntlm" cty:"winrm_use_ntlm" hcl:"winrm_use_ntlm"`
@@ -101,6 +103,8 @@ type FlatConfig struct {
 	VNCResolution             *string           `mapstructure:"vnc_resolution" cty:"vnc_resolution" hcl:"vnc_resolution"`
 	Loader                    *string           `mapstructure:"loader" cty:"loader" hcl:"loader"`
 	TimeOffset                *string           `mapstructure:"time_offset" cty:"time_offset" hcl:"time_offset"`
+	ACPI                      *bool             `mapstructure:"acpi" cty:"acpi" hcl:"acpi"`
+	APIC                      *bool             `mapstructure:"apic" cty:"apic" hcl:"apic"`
 	BootWait                  *string           `mapstructure:"boot_wait" cty:"boot_wait" hcl:"boot_wait"`
 	BootKeyInterval           *string           `mapstructure:"boot_key_interval" cty:"boot_key_interval" hcl:"boot_key_interval"`
 	BootCommand               []string          `mapstructure:"boot_command" cty:"boot_command" hcl:"boot_command"`
@@ -183,6 +187,8 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"winrm_no_proxy":               &hcldec.AttrSpec{Name: "winrm_no_proxy", Type: cty.Bool, Required: false},
 		"winrm_port":                   &hcldec.AttrSpec{Name: "winrm_port", Type: cty.Number, Required: false},
 		"winrm_timeout":                &hcldec.AttrSpec{Name: "winrm_timeout", Type: cty.String, Required: false},
+		"winrm_retry_interval":         &hcldec.AttrSpec{Name: "winrm_retry_interval", Type: cty.String, Required: false},
+		"winrm_connect_timeout":        &hcldec.AttrSpec{Name: "winrm_connect_timeout", Type: cty.String, Required: false},
 		"winrm_use_ssl":                &hcldec.AttrSpec{Name: "winrm_use_ssl", Type: cty.Bool, Required: false},
 		"winrm_insecure":               &hcldec.AttrSpec{Name: "winrm_insecure", Type: cty.Bool, Required: false},
 		"winrm_use_ntlm":               &hcldec.AttrSpec{Name: "winrm_use_ntlm", Type: cty.Bool, Required: false},
@@ -210,13 +216,18 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"vnc_port_max":                 &hcldec.AttrSpec{Name: "vnc_port_max", Type: cty.Number, Required: false},
 		"vnc_host":                     &hcldec.AttrSpec{Name: "vnc_host", Type: cty.String, Required: false},
 		"vnc_password":                 &hcldec.AttrSpec{Name: "vnc_password", Type: cty.String, Required: false},
-		"vnc_resolution":               &hcldec.AttrSpec{Name: "vnc_resolution", Type: cty.String, Required: false}, "loader": &hcldec.AttrSpec{Name: "loader", Type: cty.String, Required: false}, "time_offset": &hcldec.AttrSpec{Name: "time_offset", Type: cty.String, Required: false},
-		"boot_wait":             &hcldec.AttrSpec{Name: "boot_wait", Type: cty.String, Required: false},
-		"boot_key_interval":     &hcldec.AttrSpec{Name: "boot_key_interval", Type: cty.String, Required: false},
-		"boot_command":          &hcldec.AttrSpec{Name: "boot_command", Type: cty.List(cty.String), Required: false},
-		"shutdown_command":      &hcldec.AttrSpec{Name: "shutdown_command", Type: cty.String, Required: false},
-		"restart_after_install": &hcldec.AttrSpec{Name: "restart_after_install", Type: cty.Bool, Required: false}, "destroy": &hcldec.AttrSpec{Name: "destroy", Type: cty.Bool, Required: false},
-		"keep_on_error": &hcldec.AttrSpec{Name: "keep_on_error", Type: cty.Bool, Required: false},
+		"vnc_resolution":               &hcldec.AttrSpec{Name: "vnc_resolution", Type: cty.String, Required: false},
+		"loader":                       &hcldec.AttrSpec{Name: "loader", Type: cty.String, Required: false},
+		"time_offset":                  &hcldec.AttrSpec{Name: "time_offset", Type: cty.String, Required: false},
+		"acpi":                         &hcldec.AttrSpec{Name: "acpi", Type: cty.Bool, Required: false},
+		"apic":                         &hcldec.AttrSpec{Name: "apic", Type: cty.Bool, Required: false},
+		"boot_wait":                    &hcldec.AttrSpec{Name: "boot_wait", Type: cty.String, Required: false},
+		"boot_key_interval":            &hcldec.AttrSpec{Name: "boot_key_interval", Type: cty.String, Required: false},
+		"boot_command":                 &hcldec.AttrSpec{Name: "boot_command", Type: cty.List(cty.String), Required: false},
+		"shutdown_command":             &hcldec.AttrSpec{Name: "shutdown_command", Type: cty.String, Required: false},
+		"restart_after_install":        &hcldec.AttrSpec{Name: "restart_after_install", Type: cty.Bool, Required: false},
+		"destroy":                      &hcldec.AttrSpec{Name: "destroy", Type: cty.Bool, Required: false},
+		"keep_on_error":                &hcldec.AttrSpec{Name: "keep_on_error", Type: cty.Bool, Required: false},
 	}
 	return s
 }
