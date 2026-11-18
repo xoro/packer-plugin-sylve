@@ -3,6 +3,12 @@
 
 # Changelog
 
+## [0.2.2] - 2026-11-18
+
+### Features
+
+- _(builder)_ Ssh_bastion_disabled turns the auto-bastion off
+
 ## [0.2.1] - 2026-11-17
 
 ### Features
