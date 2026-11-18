@@ -79,6 +79,7 @@ type FlatConfig struct {
 	SourceTemplate            *string           `mapstructure:"source_template" cty:"source_template" hcl:"source_template"`
 	VMName                    *string           `mapstructure:"vm_name" cty:"vm_name" hcl:"vm_name"`
 	ShutdownCommand           *string           `mapstructure:"shutdown_command" cty:"shutdown_command" hcl:"shutdown_command"`
+	SSHBastionDisabled        *bool             `mapstructure:"ssh_bastion_disabled" cty:"ssh_bastion_disabled" hcl:"ssh_bastion_disabled"`
 	KeepRegistered            *bool             `mapstructure:"keep_registered" cty:"keep_registered" hcl:"keep_registered"`
 	BootWait                  *string           `mapstructure:"boot_wait" cty:"boot_wait" hcl:"boot_wait"`
 }
@@ -164,6 +165,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"source_template":              &hcldec.AttrSpec{Name: "source_template", Type: cty.String, Required: false},
 		"vm_name":                      &hcldec.AttrSpec{Name: "vm_name", Type: cty.String, Required: false},
 		"shutdown_command":             &hcldec.AttrSpec{Name: "shutdown_command", Type: cty.String, Required: false},
+		"ssh_bastion_disabled":         &hcldec.AttrSpec{Name: "ssh_bastion_disabled", Type: cty.Bool, Required: false},
 		"keep_registered":              &hcldec.AttrSpec{Name: "keep_registered", Type: cty.Bool, Required: false},
 		"boot_wait":                    &hcldec.AttrSpec{Name: "boot_wait", Type: cty.String, Required: false},
 	}

@@ -160,6 +160,11 @@ type Config struct {
 	// APIC enables APIC support in the VM. Defaults to true.
 	APIC bool `mapstructure:"apic"`
 
+	// SSHBastionDisabled turns the automatic SSH bastion through the Sylve
+	// host off: Packer reaches the VMs directly, e.g. when it runs in a VM on
+	// the same switch. Default false.
+	SSHBastionDisabled bool `mapstructure:"ssh_bastion_disabled"`
+
 	// IgnoreUMSRs makes bhyve ignore guest accesses to MSRs it does not
 	// implement (bhyve -w) instead of injecting a general protection fault.
 	// Some guests need it on recent Intel CPUs: OpenBSD 8.0's kernel panics
@@ -410,7 +415,7 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 	//   > ~/.ssh/config IdentityFile for the host
 	//   > default key paths (~/.ssh/id_ed25519, id_ecdsa_sk, id_ecdsa, id_dsa, id_rsa)
 	//   > SSH agent (SSHBastionAgentAuth = true)
-	if c.Config.SSHBastionHost == "" {
+	if c.Config.SSHBastionHost == "" && !c.SSHBastionDisabled {
 		u, parseErr := url.Parse(c.SylveURL)
 		if parseErr == nil && u.Hostname() != "" && !sylveHostIsLocal(u.Hostname()) {
 			c.Config.SSHBastionHost = u.Hostname()

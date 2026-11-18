@@ -637,3 +637,17 @@ func TestConfig_Prepare_ExplicitSSH_BastionHostSkipsAuto(t *testing.T) {
 		t.Fatalf("SSHBastionHost = %q", c.Config.SSHBastionHost)
 	}
 }
+
+func TestConfig_Prepare_SSHBastionDisabled_SkipsAuto(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	raw := vmMinimalValid()
+	raw["sylve_url"] = "https://192.0.2.1:8181"
+	raw["ssh_bastion_disabled"] = true
+	c, err := prepareVM(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionHost != "" {
+		t.Fatalf("SSHBastionHost = %q, want none", c.Config.SSHBastionHost)
+	}
+}

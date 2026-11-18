@@ -84,6 +84,11 @@ type Config struct {
 	// shutdown is handled by boot_command or scripts.
 	ShutdownCommand string `mapstructure:"shutdown_command"`
 
+	// SSHBastionDisabled turns the automatic SSH bastion through the Sylve
+	// host off: Packer reaches the VMs directly, e.g. when it runs in a VM on
+	// the same switch. Default false.
+	SSHBastionDisabled bool `mapstructure:"ssh_bastion_disabled"`
+
 	// KeepRegistered controls whether the VM remains in Sylve after the build.
 	// Defaults to true. When false, the VM and its disks are deleted after a
 	// successful build.
@@ -193,7 +198,7 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, []string, error) {
 	// Auto-bastion: only for SSH communicator. When no explicit ssh_bastion_host
 	// is set, route SSH through the Sylve host so Packer does not need a direct
 	// route to the VM subnet. WinRM communicator uses StepWinRMTunnel instead.
-	if (c.Config.Type == "" || c.Config.Type == "ssh") && c.Config.SSHBastionHost == "" {
+	if (c.Config.Type == "" || c.Config.Type == "ssh") && c.Config.SSHBastionHost == "" && !c.SSHBastionDisabled {
 		u, parseErr := url.Parse(c.SylveURL)
 		if parseErr == nil && u.Hostname() != "" && !sylveHostIsLocal(u.Hostname()) {
 			applyAutoBastion(c, u.Hostname())

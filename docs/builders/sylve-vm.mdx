@@ -209,6 +209,10 @@ password pair. Exactly one authentication method must be provided.
   Sylve after the build. Defaults to `true`. Incompatible with
   `destroy = true`.
 
+- `ssh_bastion_disabled` (bool) - Turns the automatic SSH bastion through the
+  Sylve host off: Packer reaches the VMs directly, e.g. when it runs in a VM on
+  the same switch. Defaults to `false`.
+
 - `destroy` (bool) - When `true`, the VM and all its storage are deleted from
   Sylve after a successful build. Defaults to `false`. When set, `keep_registered`
   is ignored.

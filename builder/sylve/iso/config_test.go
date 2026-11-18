@@ -1342,3 +1342,22 @@ func TestConfig_SSHProxy_UsesSSHConfigIdentityFile(t *testing.T) {
 		t.Error("SSHBastionAgentAuth = true, want false (key file from SSH config should be used)")
 	}
 }
+
+func TestConfig_SSHBastionDisabled_SkipsAutoBastion(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	raw := map[string]interface{}{
+		"sylve_url":            "https://192.0.2.1:8181",
+		"sylve_token":          "tok",
+		"iso_download_url":     "https://example.com/os.iso",
+		"switch_name":          "sw",
+		"ssh_username":         "root",
+		"ssh_bastion_disabled": true,
+	}
+	c, err := prepare(raw)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if c.Config.SSHBastionHost != "" {
+		t.Fatalf("SSHBastionHost = %q, want none", c.Config.SSHBastionHost)
+	}
+}

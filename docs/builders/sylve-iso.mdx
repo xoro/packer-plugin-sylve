@@ -161,6 +161,10 @@ password pair. Exactly one authentication method must be provided.
 - `time_offset` (string) - Guest clock offset. `"utc"` (default) or
   `"localtime"`.
 
+- `ssh_bastion_disabled` (bool) - Turns the automatic SSH bastion through the
+  Sylve host off: Packer reaches the VMs directly, e.g. when it runs in a VM on
+  the same switch. Defaults to `false`.
+
 - `ignore_umsrs` (bool) - Makes bhyve ignore guest accesses to MSRs it does
   not implement (bhyve `-w`) instead of injecting a general protection fault.
   Some guests need it on recent Intel CPUs: OpenBSD 8.0's kernel panics with
@@ -293,8 +297,9 @@ SSH bastion/jump host, so no static routes or VPN are required.
 
 This is **always active** when Packer is running on a different host than
 Sylve. It is automatically skipped when the Sylve URL resolves to a local
-interface address (i.e. Packer is running on the Sylve host itself), or when
-an explicit `ssh_bastion_host` field is already set in HCL.
+interface address (i.e. Packer is running on the Sylve host itself), when
+an explicit `ssh_bastion_host` field is already set in HCL, or when
+`ssh_bastion_disabled = true` (Packer reaches the VMs directly).
 
 The plugin resolves bastion credentials in this order:
 
