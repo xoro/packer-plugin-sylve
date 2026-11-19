@@ -3,6 +3,12 @@
 
 # Changelog
 
+## [0.2.3] - 2026-11-19
+
+### Bug Fixes
+
+- _(builder)_ Sylve-vm builds at once never take another's VM
+
 ## [0.2.2] - 2026-11-18
 
 ### Features
