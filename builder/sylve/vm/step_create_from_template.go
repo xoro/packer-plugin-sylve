@@ -5,8 +5,12 @@ package vm
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
 	"fmt"
 	"log"
+	"math/big"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
@@ -16,9 +20,14 @@ import (
 )
 
 // StepCreateFromTemplate creates a new VM from a named Sylve template.
-// It auto-allocates a free RID, issues the create request, polls the lifecycle
+// It picks a free RID at random, issues the create request, polls the lifecycle
 // task until creation completes, then fetches the full VM state. On failure
 // during cleanup the created VM is destroyed (it is disposable).
+//
+// Builds started together can pick the same RID: Sylve keeps a RID and a name
+// to one VM, and the step goes on only with the VM at its RID that bears its
+// own name. Another VM there, or Sylve refusing the RID, means another build
+// won it: the step tries another RID, up to maxCreateAttempts times.
 type StepCreateFromTemplate struct {
 	Config *Config
 }
@@ -39,34 +48,33 @@ func (s *StepCreateFromTemplate) Run(ctx context.Context, state multistep.StateB
 	}
 	ui.Say(fmt.Sprintf("Found template %q (ID %d)", tmpl.Name, tmpl.ID))
 
-	// Allocate a free RID for the new VM.
-	rid, err := c.FindNextFreeRID()
-	if err != nil {
-		state.Put("error", err)
-		ui.Error(err.Error())
-		return multistep.ActionHalt
-	}
-	log.Printf("[DEBUG] sylve-vm: allocated RID %d for new VM", rid)
-
 	// Create VM from template, under a name Sylve accepts.
 	vmName := sylvecommon.VMName(s.Config.VMName)
-	ui.Say(fmt.Sprintf("Creating VM %q from template %q (RID %d)...", vmName, tmpl.Name, rid))
-	req := client.CreateFromTemplateRequest{
-		Name: vmName,
-		RID:  rid,
-	}
-	if err := c.CreateVMFromTemplate(tmpl.ID, req); err != nil {
-		state.Put("error", err)
-		ui.Error(err.Error())
-		return multistep.ActionHalt
-	}
-
-	// Poll until the VM appears and the lifecycle task completes.
-	// The template create endpoint is async; wait for the VM to show up at the
-	// allocated RID.
-	ui.Say("Waiting for VM creation to complete...")
-	vm, err := s.waitForVM(c, rid)
-	if err != nil {
+	var vm *client.VM
+	for attempt := 1; ; attempt++ {
+		free, err := c.FreeRIDs()
+		if err != nil {
+			state.Put("error", err)
+			ui.Error(err.Error())
+			return multistep.ActionHalt
+		}
+		rid := pickRID(free)
+		log.Printf("[DEBUG] sylve-vm: picked RID %d for new VM (attempt %d)", rid, attempt)
+		ui.Say(fmt.Sprintf("Creating VM %q from template %q (RID %d)...", vmName, tmpl.Name, rid))
+		err = c.CreateVMFromTemplate(tmpl.ID, client.CreateFromTemplateRequest{Name: vmName, RID: rid})
+		if err == nil {
+			// The template create endpoint is async: wait for the VM to show up at
+			// the RID and its lifecycle task to complete.
+			ui.Say("Waiting for VM creation to complete...")
+			vm, err = s.waitForVM(c, rid, vmName)
+		}
+		if err == nil {
+			break
+		}
+		if attempt < maxCreateAttempts && ridTaken(err) {
+			ui.Say(fmt.Sprintf("RID %d went to another VM; trying another RID (%d of %d)", rid, attempt+1, maxCreateAttempts))
+			continue
+		}
 		state.Put("error", err)
 		ui.Error(err.Error())
 		return multistep.ActionHalt
@@ -102,6 +110,29 @@ func (s *StepCreateFromTemplate) Run(ctx context.Context, state multistep.StateB
 	return multistep.ActionContinue
 }
 
+// maxCreateAttempts bounds the RIDs tried when other VMs take the picked ones.
+const maxCreateAttempts = 5
+
+// pickRID chooses one of the free RIDs at random, so that builds started
+// together seldom pick the same one (a variable so tests can fix the choice).
+// Without randomness it takes the first: the name check keeps that correct.
+var pickRID = func(free []uint) uint {
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(free))))
+	if err != nil {
+		return free[0]
+	}
+	return free[n.Int64()]
+}
+
+// errRIDTaken: the VM at the picked RID is another's.
+var errRIDTaken = errors.New("RID taken by another VM")
+
+// ridTaken tells whether another VM won the RID: its VM is there, or Sylve
+// refused the RID as used (a VM or a jail holds it).
+func ridTaken(err error) bool {
+	return errors.Is(err, errRIDTaken) || strings.Contains(err.Error(), "rid_range_contains_used_values")
+}
+
 // Polling intervals for waitForVM (variables so tests can override).
 var (
 	createFromTemplatePollInterval = 3 * time.Second
@@ -109,14 +140,18 @@ var (
 )
 
 // waitForVM polls GET /api/vm/:rid until the VM exists and has no active
-// lifecycle task (creation complete). Times out after createFromTemplateMaxWait.
-func (s *StepCreateFromTemplate) waitForVM(c *client.Client, rid uint) (*client.VM, error) {
+// lifecycle task (creation complete). A VM there under another name than name
+// is another's: errRIDTaken. Times out after createFromTemplateMaxWait.
+func (s *StepCreateFromTemplate) waitForVM(c *client.Client, rid uint, name string) (*client.VM, error) {
 	timeout := createFromTemplateMaxWait
 	deadline := time.Now().Add(timeout)
 	poll := createFromTemplatePollInterval
 
 	for {
 		vm, err := c.GetVMByRID(rid)
+		if err == nil && vm.Name != name {
+			return nil, fmt.Errorf("%w: RID %d is VM %q, not %q", errRIDTaken, rid, vm.Name, name)
+		}
 		if err == nil {
 			// Check if the lifecycle task is still running.
 			active, taskErr := c.HasActiveLifecycleTask(vm.ID)

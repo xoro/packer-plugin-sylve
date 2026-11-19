@@ -6,6 +6,8 @@ package vm
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -16,6 +18,9 @@ import (
 
 	"github.com/xoro/packer-plugin-sylve/internal/client"
 )
+
+// The tests take the first free RID: Run's pick is random.
+func init() { pickRID = func(free []uint) uint { return free[0] } }
 
 func TestStepCreateFromTemplate_Success(t *testing.T) {
 	const rid = uint(3)
@@ -72,8 +77,9 @@ func TestStepCreateFromTemplate_Success(t *testing.T) {
 		resp := client.APIResponse[client.VM]{
 			Status: "success",
 			Data: client.VM{
-				ID:  vmID,
-				RID: rid,
+				ID:   vmID,
+				RID:  rid,
+				Name: "test-vm-8_0",
 				Networks: []client.VMNetwork{
 					{
 						ID:         10,
@@ -490,4 +496,104 @@ func TestStepCreateFromTemplate_Cleanup_DeleteError(t *testing.T) {
 	step := &StepCreateFromTemplate{Config: cfg}
 	// Should not panic — just logs the error.
 	step.Cleanup(state)
+}
+
+// raceServer serves Sylve for builds racing for RIDs: no VM holds a RID below
+// 3, owners names the VM at a RID (absent: none there yet), and refused lists
+// the RIDs Sylve refuses at create as used.
+func raceServer(t *testing.T, owners map[uint]string, refused map[uint]bool) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	reply := func(w http.ResponseWriter, v any) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(v)
+	}
+	mux.HandleFunc("/api/vm/templates", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w, client.APIResponse[[]client.SimpleTemplate]{Status: "success", Data: []client.SimpleTemplate{{ID: 7, Name: "tpl"}}})
+	})
+	mux.HandleFunc("/api/vm/simple", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w, client.APIResponse[[]client.SimpleVM]{Status: "success", Data: []client.SimpleVM{{RID: 1}, {RID: 2}}})
+	})
+	mux.HandleFunc("/api/vm/templates/7/vms", func(w http.ResponseWriter, r *http.Request) {
+		var body client.CreateFromTemplateRequest
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if refused[body.RID] {
+			w.WriteHeader(http.StatusConflict)
+			reply(w, map[string]any{"status": "error", "message": "template_create_preflight_failed", "error": "rid_range_contains_used_values"})
+			return
+		}
+		reply(w, client.APIResponse[any]{Status: "success"})
+	})
+	mux.HandleFunc("/api/vm/", func(w http.ResponseWriter, r *http.Request) {
+		var rid uint
+		if _, err := fmt.Sscanf(r.URL.Path, "/api/vm/%d", &rid); err != nil || owners[rid] == "" {
+			http.NotFound(w, r)
+			return
+		}
+		reply(w, client.APIResponse[client.VM]{Status: "success", Data: client.VM{ID: 40 + rid, RID: rid, Name: owners[rid]}})
+	})
+	mux.HandleFunc("/api/tasks/lifecycle/active/vm/", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w, map[string]any{"status": "success", "data": nil})
+	})
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// pickInTurn makes Run pick the free RIDs in order, 3, 4, 5, ... across its attempts.
+func pickInTurn(t *testing.T) {
+	t.Helper()
+	n := 0
+	pickRID = func(free []uint) uint { n++; return free[n-1] }
+	t.Cleanup(func() { pickRID = func(free []uint) uint { return free[0] } })
+}
+
+func runRace(t *testing.T, srv *httptest.Server) (multistep.StepAction, *multistep.BasicStateBag) {
+	t.Helper()
+	state := newTestState(t)
+	step := &StepCreateFromTemplate{Config: &Config{SylveURL: srv.URL, TLSSkipVerify: true, SourceTemplate: "tpl", VMName: "mine"}}
+	return step.Run(context.Background(), state), state
+}
+
+func TestStepCreateFromTemplate_AnotherVMAtTheRID_TriesAnother(t *testing.T) {
+	pickInTurn(t)
+	// RID 3 went to a build started together; RID 4 is this build's VM.
+	action, state := runRace(t, raceServer(t, map[uint]string{3: "theirs", 4: "mine"}, nil))
+	if action != multistep.ActionContinue {
+		t.Fatalf("expected ActionContinue, got %v; error=%v", action, state.Get("error"))
+	}
+	if got, _ := state.Get("vm_rid").(uint); got != 4 {
+		t.Errorf("vm_rid = %d, want 4 (never the other build's 3)", got)
+	}
+}
+
+func TestStepCreateFromTemplate_RIDRefusedAsUsed_TriesAnother(t *testing.T) {
+	pickInTurn(t)
+	// Sylve refuses RID 3 (a VM or a jail holds it); RID 4 is this build's VM.
+	action, state := runRace(t, raceServer(t, map[uint]string{4: "mine"}, map[uint]bool{3: true}))
+	if action != multistep.ActionContinue {
+		t.Fatalf("expected ActionContinue, got %v; error=%v", action, state.Get("error"))
+	}
+	if got, _ := state.Get("vm_rid").(uint); got != 4 {
+		t.Errorf("vm_rid = %d, want 4", got)
+	}
+}
+
+func TestStepCreateFromTemplate_EveryRIDTaken_HaltsWithoutAVM(t *testing.T) {
+	pickInTurn(t)
+	owners := map[uint]string{}
+	for rid := uint(3); rid < 3+maxCreateAttempts; rid++ {
+		owners[rid] = "theirs"
+	}
+	action, state := runRace(t, raceServer(t, owners, nil))
+	if action != multistep.ActionHalt {
+		t.Fatalf("expected ActionHalt, got %v", action)
+	}
+	if err, _ := state.Get("error").(error); !errors.Is(err, errRIDTaken) {
+		t.Errorf("error = %v, want errRIDTaken", err)
+	}
+	// No RID of this build: Cleanup deletes nothing, least of all another's VM.
+	if _, ok := state.GetOk("vm_rid"); ok {
+		t.Errorf("vm_rid set to %v, want unset", state.Get("vm_rid"))
+	}
 }

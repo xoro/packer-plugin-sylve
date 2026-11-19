@@ -116,21 +116,26 @@ func (c *Client) TemplateTask(guestID, taskID uint) (*LifecycleTask, error) {
 	return nil, fmt.Errorf("get template task id=%d: task not found", taskID)
 }
 
-// FindNextFreeRID scans the existing VMs and returns the first RID in the
-// range 1-9999 that is not in use. Returns an error when no free RID exists.
-func (c *Client) FindNextFreeRID() (uint, error) {
+// FreeRIDs returns the RIDs in the range 1-9999 that no VM uses, ascending.
+// Sylve also refuses a jail's ID, which this list does not know: a caller
+// retries on rid_range_contains_used_values. Returns an error when no RID is free.
+func (c *Client) FreeRIDs() ([]uint, error) {
 	vms, err := c.ListVMsSimple()
 	if err != nil {
-		return 0, fmt.Errorf("find free RID: %w", err)
+		return nil, fmt.Errorf("find free RID: %w", err)
 	}
 	used := make(map[uint]bool, len(vms))
 	for _, vm := range vms {
 		used[vm.RID] = true
 	}
+	var free []uint
 	for rid := uint(1); rid <= 9999; rid++ {
 		if !used[rid] {
-			return rid, nil
+			free = append(free, rid)
 		}
 	}
-	return 0, fmt.Errorf("find free RID: all RIDs 1-9999 are in use")
+	if len(free) == 0 {
+		return nil, fmt.Errorf("find free RID: all RIDs 1-9999 are in use")
+	}
+	return free, nil
 }

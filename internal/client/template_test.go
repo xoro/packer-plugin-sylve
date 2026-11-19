@@ -149,7 +149,7 @@ func TestCreateVMFromTemplate_Error(t *testing.T) {
 	}
 }
 
-func TestFindNextFreeRID_FirstFree(t *testing.T) {
+func TestFreeRIDs_FirstFree(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/vm/simple" {
 			http.NotFound(w, r)
@@ -169,30 +169,30 @@ func TestFindNextFreeRID_FirstFree(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	c := New(srv.URL, "tok", false)
-	rid, err := c.FindNextFreeRID()
+	free, err := c.FreeRIDs()
 	if err != nil {
-		t.Fatalf("FindNextFreeRID: %v", err)
+		t.Fatalf("FreeRIDs: %v", err)
 	}
-	// RID 1 and 2 are used, 3 is free.
-	if rid != 3 {
-		t.Errorf("RID = %d, want 3", rid)
+	// RIDs 1, 2 and 4 are used: 3 first, then 5 on, up to 9999.
+	if len(free) != 9996 || free[0] != 3 || free[1] != 5 || free[len(free)-1] != 9999 {
+		t.Errorf("FreeRIDs = %d free, starting %v, want 9996 starting [3 5]", len(free), free[:2])
 	}
 }
 
-func TestFindNextFreeRID_ListError(t *testing.T) {
+func TestFreeRIDs_ListError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "fail", http.StatusInternalServerError)
 	}))
 	t.Cleanup(srv.Close)
 
 	c := New(srv.URL, "tok", false)
-	_, err := c.FindNextFreeRID()
+	_, err := c.FreeRIDs()
 	if err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestFindNextFreeRID_AllUsed(t *testing.T) {
+func TestFreeRIDs_AllUsed(t *testing.T) {
 	// Build a full list of VMs using RIDs 1-9999.
 	allVMs := make([]SimpleVM, 9999)
 	for i := range allVMs {
@@ -210,7 +210,7 @@ func TestFindNextFreeRID_AllUsed(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	c := New(srv.URL, "tok", false)
-	_, err := c.FindNextFreeRID()
+	_, err := c.FreeRIDs()
 	if err == nil {
 		t.Fatal("expected error when all RIDs are used")
 	}
