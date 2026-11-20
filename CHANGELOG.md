@@ -3,6 +3,12 @@
 
 # Changelog
 
+## [0.2.4] - 2026-11-20
+
+### Bug Fixes
+
+- _(builder)_ Sylve-vm waits up to 10 minutes for its NIC fix's start and stop
+
 ## [0.2.3] - 2026-11-19
 
 ### Bug Fixes
