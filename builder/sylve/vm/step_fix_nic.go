@@ -47,11 +47,13 @@ type StepFixNIC struct {
 }
 
 // fixNICPollInterval controls polling during bootstrap start/stop.
-// fixNICBootstrapMaxWait is the maximum time to wait for the domain to be created.
+// fixNICBootstrapMaxWait is the maximum time to wait for the domain to be created,
+// fixNICStopMaxWait for it to stop again. Sylve runs VM lifecycle tasks one after
+// another: with several builds at once a VM waits for the others' starts and stops.
 var (
 	fixNICPollInterval     = 3 * time.Second
-	fixNICBootstrapMaxWait = 2 * time.Minute
-	fixNICStopMaxWait      = 2 * time.Minute
+	fixNICBootstrapMaxWait = 10 * time.Minute
+	fixNICStopMaxWait      = 10 * time.Minute
 )
 
 func (s *StepFixNIC) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
