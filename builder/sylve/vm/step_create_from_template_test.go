@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -595,5 +596,72 @@ func TestStepCreateFromTemplate_EveryRIDTaken_HaltsWithoutAVM(t *testing.T) {
 	// No RID of this build: Cleanup deletes nothing, least of all another's VM.
 	if _, ok := state.GetOk("vm_rid"); ok {
 		t.Errorf("vm_rid set to %v, want unset", state.Get("vm_rid"))
+	}
+}
+
+// busyServer serves Sylve whose template answers its first `busy` creates (all of
+// them if busy < 0) with 409 lifecycle_task_in_progress; it counts the creates.
+func busyServer(t *testing.T, busy int, creates *int32) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	reply := func(w http.ResponseWriter, v any) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(v)
+	}
+	mux.HandleFunc("/api/vm/templates", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w, client.APIResponse[[]client.SimpleTemplate]{Status: "success", Data: []client.SimpleTemplate{{ID: 7, Name: "tpl"}}})
+	})
+	mux.HandleFunc("/api/vm/simple", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w, client.APIResponse[[]client.SimpleVM]{Status: "success", Data: []client.SimpleVM{{RID: 1}, {RID: 2}}})
+	})
+	mux.HandleFunc("/api/vm/templates/7/vms", func(w http.ResponseWriter, _ *http.Request) {
+		n := atomic.AddInt32(creates, 1)
+		if busy < 0 || int(n) <= busy {
+			w.WriteHeader(http.StatusConflict)
+			reply(w, map[string]any{"status": "error", "message": "lifecycle_task_in_progress", "error": "lifecycle_task_in_progress"})
+			return
+		}
+		reply(w, client.APIResponse[any]{Status: "success"})
+	})
+	mux.HandleFunc("/api/vm/3", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w, client.APIResponse[client.VM]{Status: "success", Data: client.VM{ID: 43, RID: 3, Name: "mine"}})
+	})
+	mux.HandleFunc("/api/tasks/lifecycle/active/vm/", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w, map[string]any{"status": "success", "data": nil})
+	})
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// fastBusyWait makes the busy template's waits milliseconds long.
+func fastBusyWait(t *testing.T, maxWait time.Duration) {
+	t.Helper()
+	poll, limit := templateBusyPoll, templateBusyMaxWait
+	templateBusyPoll, templateBusyMaxWait = time.Millisecond, maxWait
+	t.Cleanup(func() { templateBusyPoll, templateBusyMaxWait = poll, limit })
+}
+
+func TestStepCreateFromTemplate_BusyTemplate_WaitsAndCreates(t *testing.T) {
+	fastBusyWait(t, time.Minute)
+	var creates int32
+	action, state := runRace(t, busyServer(t, 2, &creates))
+	if action != multistep.ActionContinue {
+		t.Fatalf("expected ActionContinue, got %v; error=%v", action, state.Get("error"))
+	}
+	if creates != 3 {
+		t.Errorf("creates = %d, want 3 (busy twice, then created)", creates)
+	}
+}
+
+func TestStepCreateFromTemplate_BusyTemplate_GivesUp(t *testing.T) {
+	fastBusyWait(t, 20*time.Millisecond)
+	var creates int32
+	action, state := runRace(t, busyServer(t, -1, &creates))
+	if action != multistep.ActionHalt {
+		t.Fatalf("expected ActionHalt, got %v", action)
+	}
+	if err, _ := state.Get("error").(error); err == nil || !strings.Contains(err.Error(), "template busy") {
+		t.Errorf("error = %v, want template busy", err)
 	}
 }

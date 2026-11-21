@@ -61,7 +61,7 @@ func (s *StepCreateFromTemplate) Run(ctx context.Context, state multistep.StateB
 		rid := pickRID(free)
 		log.Printf("[DEBUG] sylve-vm: picked RID %d for new VM (attempt %d)", rid, attempt)
 		ui.Say(fmt.Sprintf("Creating VM %q from template %q (RID %d)...", vmName, tmpl.Name, rid))
-		err = c.CreateVMFromTemplate(tmpl.ID, client.CreateFromTemplateRequest{Name: vmName, RID: rid})
+		err = createWhenIdle(c, tmpl.ID, client.CreateFromTemplateRequest{Name: vmName, RID: rid}, ui)
 		if err == nil {
 			// The template create endpoint is async: wait for the VM to show up at
 			// the RID and its lifecycle task to complete.
@@ -131,6 +131,32 @@ var errRIDTaken = errors.New("RID taken by another VM")
 // refused the RID as used (a VM or a jail holds it).
 func ridTaken(err error) bool {
 	return errors.Is(err, errRIDTaken) || strings.Contains(err.Error(), "rid_range_contains_used_values")
+}
+
+// While the template is busy -- another clone's lifecycle task runs, Sylve
+// answers 409 lifecycle_task_in_progress -- the create is tried again every
+// templateBusyPoll, for up to templateBusyMaxWait (variables so tests can
+// override).
+var (
+	templateBusyPoll    = 10 * time.Second
+	templateBusyMaxWait = 10 * time.Minute
+)
+
+// createWhenIdle creates the VM from the template, waiting while another
+// clone of it is being created; any other error is returned at once.
+func createWhenIdle(c *client.Client, templateID uint, req client.CreateFromTemplateRequest, ui packersdk.Ui) error {
+	deadline := time.Now().Add(templateBusyMaxWait)
+	for {
+		err := c.CreateVMFromTemplate(templateID, req)
+		if err == nil || !strings.Contains(err.Error(), "lifecycle_task_in_progress") {
+			return err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("template busy for %v: %w", templateBusyMaxWait, err)
+		}
+		ui.Say(fmt.Sprintf("Template busy (another clone is being created); trying again in %v...", templateBusyPoll))
+		time.Sleep(templateBusyPoll)
+	}
 }
 
 // Polling intervals for waitForVM (variables so tests can override).
