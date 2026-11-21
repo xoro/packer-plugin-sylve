@@ -3,6 +3,12 @@
 
 # Changelog
 
+## [0.2.5] - 2026-11-21
+
+### Bug Fixes
+
+- _(builder)_ Sylve-vm waits while its template is busy
+
 ## [0.2.4] - 2026-11-20
 
 ### Bug Fixes
