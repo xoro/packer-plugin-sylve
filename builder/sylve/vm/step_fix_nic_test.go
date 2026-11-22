@@ -1001,3 +1001,87 @@ func TestStepFixNIC_StopVMError_ContinuesAnyway(t *testing.T) {
 		t.Fatalf("expected ActionContinue; error=%v", state.Get("error"))
 	}
 }
+
+// Sylve refuses the stop while the bootstrap start's lifecycle task still runs
+// (409): the stop is asked for again until Sylve accepts it, then only waited for.
+func TestStepFixNIC_StopRefusedWhileTaskRuns_AskedAgain(t *testing.T) {
+	origPoll := fixNICPollInterval
+	origBootMax := fixNICBootstrapMaxWait
+	origStopMax := fixNICStopMaxWait
+	fixNICPollInterval = 5 * time.Millisecond
+	fixNICBootstrapMaxWait = 50 * time.Millisecond
+	fixNICStopMaxWait = 2 * time.Second
+	t.Cleanup(func() {
+		fixNICPollInterval = origPoll
+		fixNICBootstrapMaxWait = origBootMax
+		fixNICStopMaxWait = origStopMax
+	})
+
+	var stopCalls, pollsAfterStop atomic.Int32
+	var accepted atomic.Bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/vm/5/actions/start", func(w http.ResponseWriter, _ *http.Request) {
+		resp := client.APIResponse[interface{}]{Status: "success"}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	// The first stop is refused (the start's task still runs), the second accepted.
+	mux.HandleFunc("/api/vm/5/actions/stop", func(w http.ResponseWriter, _ *http.Request) {
+		if stopCalls.Add(1) == 1 {
+			http.Error(w, `{"status":"error","message":"lifecycle_task_in_progress"}`, http.StatusConflict)
+			return
+		}
+		accepted.Store(true)
+		resp := client.APIResponse[interface{}]{Status: "success"}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	// Running until a stop was accepted, shut off two polls later.
+	mux.HandleFunc("/api/vm/simple/5", func(w http.ResponseWriter, _ *http.Request) {
+		st := client.DomainStateRunning
+		if accepted.Load() && pollsAfterStop.Add(1) > 2 {
+			st = client.DomainStateShutoff
+		}
+		resp := client.APIResponse[client.SimpleVM]{
+			Status: "success",
+			Data:   client.SimpleVM{RID: 5, State: st},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/5/networks/10", func(w http.ResponseWriter, _ *http.Request) {
+		resp := client.APIResponse[interface{}]{Status: "success"}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/5/networks", func(w http.ResponseWriter, _ *http.Request) {
+		resp := client.APIResponse[interface{}]{Status: "success"}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/vm/5", func(w http.ResponseWriter, _ *http.Request) {
+		resp := client.APIResponse[client.VM]{
+			Status: "success",
+			Data:   client.VM{RID: 5, Networks: []client.VMNetwork{{ID: 20}}},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := &Config{SylveURL: srv.URL, TLSSkipVerify: true}
+	state := newTestState(t)
+	state.Put("vm_rid", uint(5))
+	state.Put("vm_network_id", uint(10))
+	state.Put("vm_network_switch", "bridge0")
+
+	step := &StepFixNIC{Config: cfg}
+	if step.Run(context.Background(), state) != multistep.ActionContinue {
+		t.Fatalf("expected ActionContinue; error=%v", state.Get("error"))
+	}
+	// Asked twice: refused, then accepted -- and not again while it stops.
+	if got := stopCalls.Load(); got != 2 {
+		t.Errorf("StopVM calls = %d, want 2", got)
+	}
+}

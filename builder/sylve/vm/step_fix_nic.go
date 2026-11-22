@@ -137,10 +137,11 @@ func (s *StepFixNIC) Run(ctx context.Context, state multistep.StateBag) multiste
 	}
 
 	// 3. Stop the VM so the domain is inactive (required for detach/attach).
+	// Sylve refuses a stop while the bootstrap start's lifecycle task still runs
+	// (409 lifecycle_task_in_progress, seen with 12 builds at once): until it
+	// accepts one, the stop is asked for again on every poll.
 	ui.Say("Stopping VM after bootstrap start...")
-	if err := c.StopVM(rid); err != nil {
-		log.Printf("[DEBUG] step_fix_nic: stop after bootstrap: %s (may already be stopped)", err)
-	}
+	stopAccepted := requestStop(c, rid)
 
 	// Poll until VM is not Running/Blocked.
 	stopDeadline := time.Now().Add(fixNICStopMaxWait)
@@ -166,6 +167,9 @@ func (s *StepFixNIC) Run(ctx context.Context, state multistep.StateBag) multiste
 			state.Put("error", err)
 			ui.Error(err.Error())
 			return multistep.ActionHalt
+		}
+		if !stopAccepted {
+			stopAccepted = requestStop(c, rid)
 		}
 	}
 
@@ -208,3 +212,14 @@ func (s *StepFixNIC) Run(ctx context.Context, state multistep.StateBag) multiste
 }
 
 func (s *StepFixNIC) Cleanup(_ multistep.StateBag) {}
+
+// requestStop asks Sylve to stop the VM: true once Sylve accepted it. A refusal
+// (e.g. 409 while another lifecycle task runs, or a VM already stopped) is only
+// logged; the caller asks again while the VM still runs.
+func requestStop(c *client.Client, rid uint) bool {
+	if err := c.StopVM(rid); err != nil {
+		log.Printf("[DEBUG] step_fix_nic: stop after bootstrap: %s (asked again while it runs)", err)
+		return false
+	}
+	return true
+}
