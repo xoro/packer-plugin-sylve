@@ -3,6 +3,16 @@
 
 # Changelog
 
+## [0.2.6] - 2026-11-22
+
+### Bug Fixes
+
+- _(vm)_ Ask Sylve again for the NIC fix's stop it refused
+
+### Miscellaneous Tasks
+
+- _(ci)_ GitHub Actions to their newest releases
+
 ## [0.2.5] - 2026-11-21
 
 ### Bug Fixes
