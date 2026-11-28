@@ -138,6 +138,7 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 	// ZFS dataset behind for that RID.
 	const maxRIDAttempts = 10
 	var createErr error
+	var refusedPorts []int
 	for attempt := 0; attempt < maxRIDAttempts; attempt++ {
 		var ridBuf [1]byte
 		if _, err := randReadFn(ridBuf[:]); err != nil {
@@ -190,6 +191,22 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 		if strings.Contains(errStr, "vm_create_stale_artifacts_detected") ||
 			strings.Contains(errStr, "rid_or_name_already_in_use") {
 			ui.Say(fmt.Sprintf("RID collision/stale artifacts (attempt %d/%d), retrying with new RID...", attempt+1, maxRIDAttempts))
+			continue
+		}
+		// Two builds starting together on one Sylve host both see the same
+		// lowest port free; the second create fails. Select again: the other
+		// VM is in Sylve's list by now.
+		if strings.Contains(errStr, "vnc_port_already_in_use") {
+			ui.Say(fmt.Sprintf("VNC port %d taken meanwhile (attempt %d/%d), selecting another...", s.Config.VNCPort, attempt+1, maxRIDAttempts))
+			if ln, ok := state.Get("vnc_view_listener").(net.Listener); ok {
+				_ = ln.Close()
+				state.Remove("vnc_view_listener")
+			}
+			refusedPorts = append(refusedPorts, s.Config.VNCPort)
+			if err := s.selectVNCPort(c, state, refusedPorts...); err != nil {
+				createErr = fmt.Errorf("vnc port selection: %w", err)
+				break
+			}
 			continue
 		}
 		// Any other error is not retryable.
@@ -423,14 +440,18 @@ func (s *StepCreateVM) Cleanup(state multistep.StateBag) {
 // The listener for the chosen port is kept open and stored in the state bag
 // under "vnc_view_listener" so the view server can Accept() on it directly
 // without a TOCTOU race. It stores the chosen port in s.Config.VNCPort.
-func (s *StepCreateVM) selectVNCPort(c *client.Client, state multistep.StateBag) error {
+func (s *StepCreateVM) selectVNCPort(c *client.Client, state multistep.StateBag, refused ...int) error {
 	vms, err := c.ListVMsSimple()
 	if err != nil {
 		return fmt.Errorf("list VMs (VNC port selection): %w", err)
 	}
-	used := make(map[int]struct{}, len(vms))
+	used := make(map[int]struct{}, len(vms)+len(refused))
 	for _, vm := range vms {
 		used[vm.VNCPort] = struct{}{}
+	}
+	// Ports Sylve refused for this build, though not (yet) in its list.
+	for _, port := range refused {
+		used[port] = struct{}{}
 	}
 
 	remoteHost := isRemoteHostForVNCPort(s.Config.VNCHost)

@@ -451,6 +451,149 @@ func TestStepCreateVM_Run_RIDRetryThenSuccess(t *testing.T) {
 	}
 }
 
+// Two builds starting together on one Sylve host pick the same lowest free
+// VNC port; Sylve refuses the second create. The step selects another port.
+func TestStepCreateVM_Run_VNCPortTakenMeanwhileSelectsAnother(t *testing.T) {
+	restoreCreateVMDurations(t)
+	lo, hi := twoConsecutiveFreeTCPPorts(t)
+	var postCalls int32
+	var ports []int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/vm/simple" && r.Method == http.MethodGet:
+			var data []client.SimpleVM
+			if atomic.LoadInt32(&postCalls) >= 2 {
+				data = []client.SimpleVM{{RID: 7, ID: 100, Name: "packer-test", State: client.DomainStateRunning}}
+			}
+			_ = json.NewEncoder(w).Encode(client.APIResponse[[]client.SimpleVM]{Status: "ok", Data: data})
+		case r.URL.Path == "/api/vm" && r.Method == http.MethodPost:
+			var req client.CreateVMRequest
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			ports = append(ports, req.VNCPort)
+			if atomic.AddInt32(&postCalls, 1) == 1 {
+				http.Error(w, `{"status":"error","message":"vnc_port_already_in_use_by_another_vm"}`, http.StatusConflict)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
+		case r.URL.Path == "/api/vm/7" && r.Method == http.MethodGet && strings.Contains(r.URL.RawQuery, "type=rid"):
+			vm := client.VM{
+				ID:            100,
+				RID:           7,
+				Name:          "packer-test",
+				State:         client.DomainStateRunning,
+				Networks:      []client.VMNetwork{{MacObj: &client.VMNetworkObject{Entries: []client.VMNetworkObjectEntry{{Value: "aa:bb:cc:dd:ee:ff"}}}}},
+				Storages:      []client.VMStorage{{ID: 1, Type: "image", Name: "", Emulation: "ahci-cd", BootOrder: 0}},
+				ACPI:          true,
+				APIC:          true,
+				StartedAt:     time.Now(),
+				VNCPort:       hi,
+				VNCResolution: "1024x768",
+			}
+			_ = json.NewEncoder(w).Encode(client.APIResponse[client.VM]{Status: "ok", Data: vm})
+		case strings.Contains(r.URL.Path, "/storage/") && r.Method == http.MethodPatch:
+			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
+		case strings.HasSuffix(r.URL.Path, "/options/boot-order") && r.Method == http.MethodPut:
+			_ = json.NewEncoder(w).Encode(client.APIResponse[interface{}]{Status: "ok"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := &Config{
+		SylveURL:             srv.URL,
+		SylveToken:           "tok",
+		TLSSkipVerify:        true,
+		VMName:               "packer-test",
+		StoragePool:          "tank",
+		SwitchName:           "sw",
+		VNCPortMin:           lo,
+		VNCPortMax:           hi,
+		VNCHost:              "127.0.0.1",
+		StorageSizeMB:        1024,
+		StorageType:          "zvol",
+		StorageEmulationType: "virtio-blk",
+		SwitchEmulationType:  "e1000",
+	}
+
+	step := &StepCreateVM{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+	state.Put("iso_uuid", "iso-uuid")
+
+	if got := step.Run(context.Background(), state); got != multistep.ActionContinue {
+		t.Fatalf("Run() = %v, want ActionContinue (error: %v)", got, state.Get("error"))
+	}
+	if len(ports) != 2 || ports[0] != lo || ports[1] != hi {
+		t.Fatalf("VNC ports tried = %v, want [%d %d]", ports, lo, hi)
+	}
+}
+
+// Sylve refuses the port, the listener kept for a remote host is released,
+// and selecting again fails: the step halts with the selection's error.
+func TestStepCreateVM_Run_VNCPortTakenMeanwhileSelectionFails(t *testing.T) {
+	oldHost, oldDial := isRemoteHostForVNCPort, dialTCPForVNCPortProbe
+	t.Cleanup(func() {
+		isRemoteHostForVNCPort = oldHost
+		dialTCPForVNCPortProbe = oldDial
+	})
+	isRemoteHostForVNCPort = func(string) bool { return true }
+	dialTCPForVNCPortProbe = func(string, string, time.Duration) (net.Conn, error) {
+		return nil, fmt.Errorf("connection refused")
+	}
+
+	port := newFreeTCPPort(t)
+	var listCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/vm/simple" && r.Method == http.MethodGet:
+			if atomic.AddInt32(&listCalls, 1) > 1 {
+				http.Error(w, "list VMs failed", http.StatusBadRequest)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(client.APIResponse[[]client.SimpleVM]{Status: "ok"})
+		case r.URL.Path == "/api/vm" && r.Method == http.MethodPost:
+			http.Error(w, `{"status":"error","message":"vnc_port_already_in_use_by_another_vm"}`, http.StatusConflict)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := &Config{
+		SylveURL:             srv.URL,
+		SylveToken:           "tok",
+		TLSSkipVerify:        true,
+		VMName:               "packer-test",
+		StoragePool:          "tank",
+		SwitchName:           "sw",
+		VNCPortMin:           port,
+		VNCPortMax:           port,
+		VNCHost:              "sylve.example",
+		StorageSizeMB:        1024,
+		StorageType:          "zvol",
+		StorageEmulationType: "virtio-blk",
+		SwitchEmulationType:  "e1000",
+	}
+
+	step := &StepCreateVM{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+	state.Put("iso_uuid", "iso-uuid")
+
+	if got := step.Run(context.Background(), state); got != multistep.ActionHalt {
+		t.Fatalf("Run() = %v, want ActionHalt", got)
+	}
+	if err, _ := state.Get("error").(error); err == nil || !strings.Contains(err.Error(), "vnc port selection") {
+		t.Fatalf("error = %v, want the selection's", state.Get("error"))
+	}
+	if _, ok := state.GetOk("vnc_view_listener"); ok {
+		t.Fatal("the refused port's listener is still in the state")
+	}
+}
+
 func TestStepCreateVM_Run_ListVMsErrorDuringVNCPortSelection(t *testing.T) {
 	port := newFreeTCPPort(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
