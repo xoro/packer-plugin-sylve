@@ -3,6 +3,16 @@
 
 # Changelog
 
+## [0.2.7] - 2026-11-28
+
+### Bug Fixes
+
+- _(iso)_ Select another VNC port when Sylve refuses the chosen one
+
+### Testing
+
+- _(iso)_ The refused VNC port's listener released, a failing reselection halts
+
 ## [0.2.6] - 2026-11-22
 
 ### Bug Fixes
