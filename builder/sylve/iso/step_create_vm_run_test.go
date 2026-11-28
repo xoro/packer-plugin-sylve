@@ -530,6 +530,70 @@ func TestStepCreateVM_Run_VNCPortTakenMeanwhileSelectsAnother(t *testing.T) {
 	}
 }
 
+// Sylve refuses the port, the listener kept for a remote host is released,
+// and selecting again fails: the step halts with the selection's error.
+func TestStepCreateVM_Run_VNCPortTakenMeanwhileSelectionFails(t *testing.T) {
+	oldHost, oldDial := isRemoteHostForVNCPort, dialTCPForVNCPortProbe
+	t.Cleanup(func() {
+		isRemoteHostForVNCPort = oldHost
+		dialTCPForVNCPortProbe = oldDial
+	})
+	isRemoteHostForVNCPort = func(string) bool { return true }
+	dialTCPForVNCPortProbe = func(string, string, time.Duration) (net.Conn, error) {
+		return nil, fmt.Errorf("connection refused")
+	}
+
+	port := newFreeTCPPort(t)
+	var listCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/vm/simple" && r.Method == http.MethodGet:
+			if atomic.AddInt32(&listCalls, 1) > 1 {
+				http.Error(w, "list VMs failed", http.StatusBadRequest)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(client.APIResponse[[]client.SimpleVM]{Status: "ok"})
+		case r.URL.Path == "/api/vm" && r.Method == http.MethodPost:
+			http.Error(w, `{"status":"error","message":"vnc_port_already_in_use_by_another_vm"}`, http.StatusConflict)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := &Config{
+		SylveURL:             srv.URL,
+		SylveToken:           "tok",
+		TLSSkipVerify:        true,
+		VMName:               "packer-test",
+		StoragePool:          "tank",
+		SwitchName:           "sw",
+		VNCPortMin:           port,
+		VNCPortMax:           port,
+		VNCHost:              "sylve.example",
+		StorageSizeMB:        1024,
+		StorageType:          "zvol",
+		StorageEmulationType: "virtio-blk",
+		SwitchEmulationType:  "e1000",
+	}
+
+	step := &StepCreateVM{Config: cfg}
+	state := new(multistep.BasicStateBag)
+	state.Put("ui", newMockUI())
+	state.Put("iso_uuid", "iso-uuid")
+
+	if got := step.Run(context.Background(), state); got != multistep.ActionHalt {
+		t.Fatalf("Run() = %v, want ActionHalt", got)
+	}
+	if err, _ := state.Get("error").(error); err == nil || !strings.Contains(err.Error(), "vnc port selection") {
+		t.Fatalf("error = %v, want the selection's", state.Get("error"))
+	}
+	if _, ok := state.GetOk("vnc_view_listener"); ok {
+		t.Fatal("the refused port's listener is still in the state")
+	}
+}
+
 func TestStepCreateVM_Run_ListVMsErrorDuringVNCPortSelection(t *testing.T) {
 	port := newFreeTCPPort(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
